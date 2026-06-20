@@ -59,12 +59,8 @@ body{
 .button:focus-visible{outline:0.1875rem solid var(--accent);outline-offset:0.125rem}
 .button--primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .button--primary:hover{background:#3451c4}
-.button--secondary{background:transparent;color:var(--ink);border-color:var(--line)}
-.button--secondary:hover{border-color:var(--ink);background:rgba(0,0,0,0.03)}
 .button--tertiary{background:transparent;color:var(--accent);border-color:transparent;text-decoration:underline;text-underline-offset:0.15em;padding:0.45rem 0.4rem}
 .button--tertiary:hover{color:#1f3aa8}
-.button--danger{background:transparent;color:var(--invalid);border-color:transparent;text-decoration:underline;text-underline-offset:0.15em;padding:0.45rem 0.4rem}
-.button--danger:hover{color:#871212}
 
 /* ---------- layout (canvas is full-bleed) ---------- */
 /* (no header bar; .canvas-wrap fills the viewport) */
@@ -76,11 +72,6 @@ body{
 }
 .panel{border:0.0625rem solid var(--line);border-radius:0.6rem;padding:0.9rem;background:var(--bg-main)}
 .panel h2{font-size:0.78rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:0 0 0.5rem;font-weight:600}
-.help p{margin:0.4rem 0;font-size:0.85rem}
-.help code{background:#0000000d;padding:0.05rem 0.3rem;border-radius:0.25rem;font-size:0.8rem}
-.legend{display:flex;gap:0.8rem;flex-wrap:wrap;margin-top:0.4rem;font-size:0.8rem}
-.legend span{display:flex;align-items:center;gap:0.35rem}
-.swatch{width:1.1rem;height:0.25rem;border-radius:0.2rem;display:inline-block}
 
 /* verdict */
 .verdict{font-size:0.95rem}
@@ -107,13 +98,10 @@ body{
 .pattern-tag--valid{color:var(--valid);border-color:#0f766e55}
 .pattern-tag--invalid{color:var(--invalid);border-color:#b91c1c55}
 .material-icons{font-family:'Material Icons';font-weight:normal;font-style:normal;display:inline-block;line-height:1;text-transform:none;letter-spacing:normal;word-wrap:normal;white-space:nowrap;direction:ltr;-webkit-font-smoothing:antialiased;vertical-align:middle;font-size:1.05em}
-.material-icons--sm{font-size:0.95em}
 .button .material-icons{margin-right:0.3rem;position:relative;top:-0.02em}
 .icon-btn{display:inline-flex;align-items:center;justify-content:center;font:inherit;font-size:0.72rem;font-weight:600;padding:0.3rem 0.45rem;border-radius:0.4rem;border:0.0625rem solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
 .icon-btn:hover{border-color:var(--ink);background:rgba(0,0,0,0.03)}
 .icon-btn .material-icons{margin:0;font-size:1rem}
-.overall{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.1rem}
-.overall .step__num{font-size:0.78rem}
 .ce-list{margin:0.6rem 0 0;padding:0;list-style:none;font-family:ui-monospace,Menlo,monospace;font-size:0.8rem}
 .ce-list li{padding:0.2rem 0;border-bottom:0.0625rem dashed var(--line)}
 .ce-list li:last-child{border:0}
@@ -137,7 +125,7 @@ body{
   font-size:0.95rem;text-align:center;padding:2rem;pointer-events:none;
 }
 
-/* link-mode banner */
+/* selection banner (shown while blocks are lasso-selected) */
 .link-banner{
   position:absolute;bottom:1rem;left:50%;transform:translateX(-50%);
   background:var(--ink);color:#fff;padding:0.5rem 0.9rem;border-radius:99px;
@@ -153,7 +141,6 @@ body{
   box-shadow:0 0.15rem 0.4rem #00000018;
   overflow:hidden;transition:box-shadow .12s,border-color .12s;
 }
-.block--targetable{border-color:var(--accent);box-shadow:0 0 0 0.12rem #3b5bdb44}
 .block--conclusion{border-color:var(--valid)}
 .block--dragging{box-shadow:0 0.35rem 1rem #00000033}
 .block--selected{}
@@ -184,8 +171,8 @@ body{
 .block__close:hover{opacity:1;background:#0000000d}
 .block__close .material-icons{font-size:1rem}
 .block__actions{display:flex;gap:0.3rem;flex-wrap:wrap;padding:0.45rem 0.55rem;border-top:0.0625rem solid var(--line);background:#00000004}
-.block__actions .button{font-size:0.72rem;padding:0.3rem 0.5rem}
 .tt{border-collapse:collapse;font-family:ui-monospace,Menlo,monospace;font-size:0.75rem;width:100%}
+.tt-ce{background:#b91c1c0d}
 .tt th,.tt td{border:0.0625rem solid var(--line);padding:0.18rem 0.4rem;text-align:center}
 .tt th{background:#00000008;font-weight:600;color:var(--muted)}
 .tt .v-t{color:var(--valid);font-weight:700}
@@ -219,7 +206,7 @@ body{
 .zoom-pct{font:inherit;font-size:0.78rem;font-weight:600;color:var(--ink);background:transparent;border:0;cursor:pointer;min-width:3.1rem;padding:0 0.2rem;text-align:center}
 .zoom-pct:hover{color:var(--accent)}
 
-/* ---------- validity toggle fab (canvas bottom-right, stacked above help) ---------- */
+/* ---------- validity toggle fab (top-left) ---------- */
 .validity-fab{position:fixed;top:1rem;left:1rem;z-index:20;width:2.4rem;height:2.4rem;border-radius:50%;background:var(--valid);color:#fff;border:0;display:grid;place-items:center;cursor:pointer;box-shadow:0 0.15rem 0.5rem #0003;transition:background .12s,transform .12s,left .2s}
 .validity-fab:hover{background:#0c6259;transform:scale(1.05)}
 .validity-fab[aria-expanded="true"]{background:var(--ink)}
@@ -542,9 +529,6 @@ function deleteStep(conclusionId){
 
 /* ================= validity (multi-step: each conclusion is a step) ================= */
 // ---- P1-1: chain propagation helpers ----
-function derivingStepOf(blockId){
-  return premisesOf(blockId).length>0 ? blockId : null;
-}
 function upstreamSteps(conclusionId, seen){
   seen = seen || new Set();
   const pids=premisesOf(conclusionId);
@@ -805,7 +789,7 @@ function mkBlockEl(b){
     <div class="block__why"></div>
     <div class="block__truthwrap"></div>
     <div class="block__actions">
-      <button class="icon-btn" data-act="table" data-hideable title="Truth table"><span class="material-icons">grid_on</span></button>
+      <button class="icon-btn" data-act="table" title="Truth table"><span class="material-icons">grid_on</span></button>
     </div>`;
   // input
   const input=el.querySelector('.block__input');
@@ -1052,7 +1036,6 @@ function renderWires(){
     vis.setAttribute('d',d);
     vis.setAttribute('stroke','var(--valid)');
     vis.setAttribute('stroke-width', isSelected?'0.32rem':'0.17rem');
-    vis.setAttribute('stroke-dasharray','');
     vis.setAttribute('fill','none');
     vis.setAttribute('marker-end','url(#arrowEntails)');
     wiresSvg.appendChild(vis);
@@ -1082,7 +1065,7 @@ function beginDrag(ev,id){
   const b=B(id); if(!b) return;
   const crect=canvas.getBoundingClientRect();
   const er=ev.currentTarget.getBoundingClientRect();
-  state.dragging={id, dx:ev.clientX-er.left, dy:ev.clientY-er.top, crect};
+  state.dragging={id, dx:ev.clientX-er.left, dy:ev.clientY-er.top};
   const el=canvas.querySelector('.block[data-id="'+id+'"]'); el.classList.add('block--dragging');
   ev.preventDefault();
 }
