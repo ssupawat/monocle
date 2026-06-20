@@ -1,4 +1,4 @@
-# Argument Builder
+# 🧐 Argument Builder
 
 Interactive tool for learning propositional logic. Drag blocks, wire them with lasso-select + click-to-conclude, and check argument validity via truth tables.
 
