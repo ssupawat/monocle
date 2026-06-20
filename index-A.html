@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Argument Builder — ⊨ visual validity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- simply-design palette (3 shades + 3 non-grey) ---------- */
+:root{
+  --bg-main:#F4F1EA;   /* background — warm paper */
+  --content:#FFFFFF;   /* content surface */
+  --ink:#26323E;       /* darkest — text & structure */
+  --accent:#3B5BDB;    /* non-grey 1 — primary / AND wire (indigo) */
+  --valid:#0F766E;     /* non-grey 2 — entails wire / valid (teal) */
+  --invalid:#B91C1C;   /* non-grey 3 — counterexample (red) */
+  --line:#D9D2C4;      /* subtle border tint */
+  --muted:#6B6357;     /* muted text */
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  background:var(--bg-main);
+  color:var(--ink);
+  font-size:1rem;
+  line-height:1.5;
+  display:grid;
+  grid-template-rows:auto 1fr;
+  height:100vh;
+}
+
+/* ---------- header ---------- */
+.app-header{
+  display:flex;align-items:center;gap:1rem;flex-wrap:wrap;
+  padding:0.9rem 1.25rem;
+  border-bottom:0.0625rem solid var(--line);
+  background:var(--content);
+}
+.app-header h1{font-size:1.1rem;margin:0;font-weight:700;letter-spacing:-0.01em}
+.app-header .sub{color:var(--muted);font-size:0.85rem;margin-right:auto}
+.app-header .actions{display:flex;gap:0.5rem;flex-wrap:wrap}
+
+/* ---------- buttons (3 tiers) ---------- */
+.button{
+  font:inherit;font-size:0.85rem;font-weight:600;
+  border-radius:0.4rem;padding:0.45rem 0.8rem;
+  border:0.09375rem solid transparent;
+  transition:background .12s,color .12s,border-color .12s;
+}
+.button:focus-visible{outline:0.1875rem solid var(--accent);outline-offset:0.125rem}
+.button--primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.button--primary:hover{background:#3451c4}
+.button--secondary{background:transparent;color:var(--ink);border-color:var(--line)}
+.button--secondary:hover{border-color:var(--ink);background:rgba(0,0,0,0.03)}
+.button--tertiary{background:transparent;color:var(--accent);border-color:transparent;text-decoration:underline;text-underline-offset:0.15em;padding:0.45rem 0.4rem}
+.button--tertiary:hover{color:#1f3aa8}
+.button--danger{background:transparent;color:var(--invalid);border-color:transparent;text-decoration:underline;text-underline-offset:0.15em;padding:0.45rem 0.4rem}
+.button--danger:hover{color:#871212}
+.preset-select{display:flex;align-items:center;gap:0.35rem;font-size:0.8rem;color:var(--muted)}
+.preset-select select{font:inherit;font-size:0.85rem;font-weight:600;padding:0.4rem 0.6rem}
+
+/* ---------- layout ---------- */
+.main{display:grid;grid-template-columns:21rem 1fr;min-height:0}
+@media (max-width:60rem){.main{grid-template-columns:1fr;grid-template-rows:auto 1fr}}
+
+/* ---------- sidebar ---------- */
+.sidebar{
+  border-right:0.0625rem solid var(--line);
+  background:var(--content);
+  overflow:auto;
+  padding:1rem 1.1rem;
+  display:flex;flex-direction:column;gap:1.1rem;
+}
+.panel{border:0.0625rem solid var(--line);border-radius:0.6rem;padding:0.9rem;background:var(--bg-main)}
+.panel h2{font-size:0.78rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:0 0 0.5rem;font-weight:600}
+.help p{margin:0.4rem 0;font-size:0.85rem}
+.help code{background:#0000000d;padding:0.05rem 0.3rem;border-radius:0.25rem;font-size:0.8rem}
+.legend{display:flex;gap:0.8rem;flex-wrap:wrap;margin-top:0.4rem;font-size:0.8rem}
+.legend span{display:flex;align-items:center;gap:0.35rem}
+.swatch{width:1.1rem;height:0.25rem;border-radius:0.2rem;display:inline-block}
+
+/* verdict */
+.verdict{font-size:0.95rem}
+.verdict__arg{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.85rem;background:#0000000a;padding:0.6rem;border-radius:0.4rem;word-break:break-word}
+.badge{display:inline-block;padding:0.2rem 0.6rem;border-radius:99px;font-weight:700;font-size:0.8rem;margin-top:0.5rem}
+.badge--valid{background:#0f766e1f;color:var(--valid)}
+.badge--invalid{background:#b91c1c1f;color:var(--invalid)}
+.badge--idle{background:#0000000d;color:var(--muted)}
+.step{margin:0}
+.step:not(:first-child){margin-top:0.2rem}
+.step__head{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem}
+.step__num{font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted)}
+.overall{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.1rem}
+.overall .step__num{font-size:0.78rem}
+.ce-list{margin:0.6rem 0 0;padding:0;list-style:none;font-family:ui-monospace,Menlo,monospace;font-size:0.8rem}
+.ce-list li{padding:0.2rem 0;border-bottom:0.0625rem dashed var(--line)}
+.ce-list li:last-child{border:0}
+.ce-sentence{margin:0.4rem 0 0;font-size:0.83rem;color:var(--ink);line-height:1.45}
+.ce-sentence::before{content:"Why invalid: ";font-weight:700;color:var(--invalid)}
+.note{color:var(--muted);font-size:0.8rem;margin:0.4rem 0 0}
+
+/* ---------- canvas ---------- */
+.canvas-wrap{position:relative;min-height:0;overflow:hidden}
+.canvas{
+  position:absolute;inset:0;
+  background-image:radial-gradient(var(--line) 0.09375rem, transparent 0.09375rem);
+  background-size:1.4rem 1.4rem;
+  background-position:0 0;
+  overflow:hidden;
+}
+.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.wires .hit{pointer-events:stroke;cursor:pointer}
+.empty-hint{
+  position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);
+  font-size:0.95rem;text-align:center;padding:2rem;pointer-events:none;
+}
+
+/* link-mode banner */
+.link-banner{
+  position:absolute;top:0.75rem;left:50%;transform:translateX(-50%);
+  background:var(--ink);color:#fff;padding:0.5rem 0.9rem;border-radius:99px;
+  font-size:0.82rem;font-weight:600;z-index:5;box-shadow:0 0.15rem 0.6rem #0004;
+  display:flex;align-items:center;gap:0.6rem;
+}
+.link-banner button{background:transparent;color:#fff;border:0.0625rem solid #fff6;font:inherit;font-size:0.75rem;border-radius:99px;padding:0.15rem 0.6rem}
+
+/* ---------- block ---------- */
+.block{
+  position:absolute;min-width:13rem;max-width:18rem;z-index:1;
+  background:var(--content);border:0.0625rem solid var(--line);border-radius:0.6rem;
+  box-shadow:0 0.15rem 0.4rem #00000018;
+  overflow:hidden;transition:box-shadow .12s,border-color .12s;
+}
+.block--targetable{border-color:var(--accent);box-shadow:0 0 0 0.12rem #3b5bdb44}
+.block--conclusion{border-color:var(--valid)}
+.block--dragging{box-shadow:0 0.35rem 1rem #00000033}
+.block__head{
+  display:flex;align-items:center;gap:0.4rem;
+  padding:0.4rem 0.6rem;background:#00000008;border-bottom:0.0625rem solid var(--line);
+  cursor:grab;font-size:0.75rem;font-weight:600;color:var(--muted);user-select:none;
+}
+.block__head:active{cursor:grabbing}
+.block__role{margin-right:auto}
+.block__role--c{color:var(--valid)}
+.block__input{
+  width:100%;border:0;font:inherit;font-size:1rem;font-weight:600;color:var(--ink);
+  padding:0.55rem 0.7rem;background:transparent;outline:none;font-family:ui-monospace,Menlo,monospace;
+}
+.block__err{color:var(--invalid);font-size:0.75rem;padding:0 0.7rem;margin-top:-0.2rem}
+.ops{display:flex;gap:0.25rem;padding:0.3rem 0.55rem;border-top:0.0625rem solid var(--line);background:#00000004}
+.ops__b{font-family:ui-monospace,Menlo,monospace;font-size:0.85rem;font-weight:600;color:var(--ink);background:var(--content);border:0.0625rem solid var(--line);border-radius:0.3rem;min-width:1.5rem;height:1.5rem;padding:0;cursor:pointer}
+.ops__b:hover{border-color:var(--accent);color:var(--accent)}
+.block__why{font-size:0.74rem;padding:0 0.6rem 0.5rem}
+.block__why--bad{color:var(--invalid)}
+.block__why--warn{color:var(--invalid)}
+.block__why--good{color:var(--valid)}
+.block__why--bad strong{font-weight:700}
+.block__why__head{display:block;font-weight:700;margin-bottom:0.1rem}
+.block__truth{padding:0.4rem 0.6rem 0.6rem;overflow:auto}
+.block__actions{display:flex;gap:0.3rem;flex-wrap:wrap;padding:0.45rem 0.55rem;border-top:0.0625rem solid var(--line);background:#00000004}
+.block__actions .button{font-size:0.72rem;padding:0.3rem 0.5rem}
+.tt{border-collapse:collapse;font-family:ui-monospace,Menlo,monospace;font-size:0.75rem;width:100%}
+.tt th,.tt td{border:0.0625rem solid var(--line);padding:0.18rem 0.4rem;text-align:center}
+.tt th{background:#00000008;font-weight:600;color:var(--muted)}
+.tt .v-t{color:var(--valid);font-weight:700}
+.tt .v-f{color:var(--invalid);font-weight:700}
+
+/* wire delete nub */
+.wire-del{
+  position:absolute;transform:translate(-50%,-50%);z-index:4;
+  background:var(--invalid);color:#fff;border:0;border-radius:0.3rem;
+  width:1.1rem;height:1.1rem;font-size:0.8rem;line-height:1;cursor:pointer;
+  display:grid;place-items:center;
+}
+</style>
+</head>
+<body>
+<header class="app-header">
+  <h1>Argument Builder</h1>
+  <span class="sub">drag blocks · wire with <strong style="color:var(--accent)">∧</strong> or <strong style="color:var(--valid)">⊨</strong> · check validity</span>
+  <div class="actions">
+    <button class="button button--primary" id="addBtn">+ Add block</button>
+    <label class="preset-select">
+      <span>Presets:</span>
+      <select id="presetSel" class="button button--secondary">
+        <option value="">Load…</option>
+      </select>
+    </label>
+    <button class="button button--tertiary" id="clearBtn">Clear</button>
+  </div>
+</header>
+
+<div class="main">
+  <aside class="sidebar">
+    <section class="panel help">
+      <h2>How it works</h2>
+      <p><strong>Block</strong> = a statement. Type any proposition inside using
+      <code>¬ ∧ ∨ → ↔</code> (or <code>! &amp; | -&gt; &lt;-&gt;</code>) and variables like <code>p</code>.</p>
+      <p><strong>∧ wire</strong> joins a block into the premise cluster (all must hold) — shown as a dashed halo around the group.</p>
+      <p><strong>⊨ wire</strong> points from that whole cluster (the halo) to <em>any</em> proposition: “the premises ⊨ this”. That target is <strong>derived</strong> and can itself be ∧-linked into a later step.</p>
+      <p><strong>Each ⊨ wire is its own checkable step.</strong> Valid ⟺ no row where all premises true and target false. Chain steps to build a longer argument.</p>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--accent)"></i> ∧ conjoin</span>
+        <span><i class="swatch" style="background:var(--valid)"></i> ⊨ therefore</span>
+      </div>
+      <p class="note">Click a block's <em>table</em> button to expand its own truth table. Drag by the header.</p>
+      <p class="note">Re-use a derived block: ∧-link it into another cluster, then ⊨ to a new target — that's step 2, 3, …</p>
+    </section>
+
+    <section class="panel verdict" id="verdictPanel">
+      <h2>Validity</h2>
+      <div id="verdictBody"><span class="badge badge--idle">no argument yet</span>
+        <p class="note">Add blocks, join premises with ∧, and draw a ⊨ wire to a conclusion.</p>
+      </div>
+    </section>
+  </aside>
+
+  <main class="canvas-wrap">
+    <div class="canvas" id="canvas">
+      <svg class="wires" id="wires">
+        <defs>
+          <marker id="arrowEntails" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--valid)"></path>
+          </marker>
+        </defs>
+      </svg>
+      <div class="empty-hint" id="emptyHint">No blocks yet — click “+ Add block”.</div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* ================= logic engine ================= */
+function tokenize(s){
+  const toks=[]; let i=0;
+  const push=(t)=>toks.push(t);
+  while(i<s.length){
+    const c=s[i];
+    if(/\s/.test(c)){i++;continue;}
+    if(c==='('||c===')'){push({t:'par',v:c});i++;continue;}
+    // multi-char ascii operators
+    const two=s.slice(i,i+2);
+    if(s.slice(i,i+3)==='<->'){push({t:'op',v:'↔'});i+=3;continue;}
+    if(two==='->'){push({t:'op',v:'→'});i+=2;continue;}
+    if(two==='&&'){push({t:'op',v:'∧'});i+=2;continue;}
+    if(two==='||'){push({t:'op',v:'∨'});i+=2;continue;}
+    if('¬~!'.includes(c)){push({t:'op',v:'¬'});i++;continue;}
+    if('∧&·'.includes(c)){push({t:'op',v:'∧'});i++;continue;}
+    if('∨|+'.includes(c)){push({t:'op',v:'∨'});i++;continue;}
+    if('→⊃'.includes(c)){push({t:'op',v:'→'});i++;continue;}
+    if('↔≡'.includes(c)){push({t:'op',v:'↔'});i++;continue;}
+    if(/[A-Za-z]/.test(c)){
+      let j=i+1;
+      while(j<s.length && /[A-Za-z0-9_']/.test(s[j])) j++;
+      push({t:'var',v:s.slice(i,j)});i=j;continue;
+    }
+    throw new Error('Unexpected character “'+c+'”');
+  }
+  return toks;
+}
+function parse(input){
+  const toks=tokenize(input); let p=0;
+  const peek=()=>toks[p];
+  const eat=(v)=>{const t=toks[p]; if(!t||(v?t.v!==v:false)) throw new Error('Expected “'+v+'”'); p++; return t;};
+  function iff(){
+    let a=imp();
+    while(peek()&&peek().v==='↔'){p++; const b=imp(); a={t:'iff',a,b};}
+    return a;
+  }
+  function imp(){
+    let a=orr();
+    if(peek()&&peek().v==='→'){p++; const b=imp(); return {t:'imp',a,b};} // right assoc
+    return a;
+  }
+  function orr(){
+    let a=andd();
+    while(peek()&&peek().v==='∨'){p++; const b=andd(); a={t:'or',a,b};}
+    return a;
+  }
+  function andd(){
+    let a=nott();
+    while(peek()&&peek().v==='∧'){p++; const b=nott(); a={t:'and',a,b};}
+    return a;
+  }
+  function nott(){
+    if(peek()&&peek().v==='¬'){p++; return {t:'not',a:nott()};}
+    return atom();
+  }
+  function atom(){
+    const t=peek();
+    if(!t) throw new Error('Unexpected end');
+    if(t.t==='var'){p++; return {t:'var',v:t.v};}
+    if(t.t==='par'&&t.v==='('){p++; const e=iff(); eat(')'); return e;}
+    throw new Error('Unexpected “'+t.v+'”');
+  }
+  const ast=iff();
+  if(p<toks.length) throw new Error('Unexpected “'+toks[p].v+'”');
+  return ast;
+}
+function evalAst(n,env){
+  switch(n.t){
+    case 'var': return !!env[n.v];
+    case 'not': return !evalAst(n.a,env);
+    case 'and': return evalAst(n.a,env)&&evalAst(n.b,env);
+    case 'or': return evalAst(n.a,env)||evalAst(n.b,env);
+    case 'imp': return (!evalAst(n.a,env))||evalAst(n.b,env);
+    case 'iff': return evalAst(n.a,env)===evalAst(n.b,env);
+  }
+}
+function varsOf(n,acc){
+  acc=acc||new Set();
+  if(!n) return acc;
+  if(n.t==='var') acc.add(n.v);
+  else if(n.t==='not') varsOf(n.a,acc);
+  else {varsOf(n.a,acc);varsOf(n.b,acc);}
+  return acc;
+}
+function tryParse(label){
+  try{return {ast:parse(label)};}catch(e){return {err:e.message};}
+}
+// truth table for a single block over its own vars
+function blockTruth(ast){
+  const vars=[...varsOf(ast)].sort();
+  const rows=[];
+  const n=vars.length;
+  for(let m=0;m<(1<<n);m++){
+    const env={};
+    vars.forEach((v,k)=>{env[v]=!!((m>>(n-1-k))&1);});
+    rows.push({env,val:evalAst(ast,env)});
+  }
+  return {vars,rows};
+}
+
+/* ================= state ================= */
+const state={
+  blocks:[], wires:[], nextId:1,
+  expanded:new Set(),
+  pending:null,        // {from,type}
+  selectedWire:null,
+  dragging:null,       // {id, dx, dy}
+};
+const canvas=document.getElementById('canvas');
+const wiresSvg=document.getElementById('wires');
+const emptyHint=document.getElementById('emptyHint');
+const verdictBody=document.getElementById('verdictBody');
+
+function B(id){return state.blocks.find(b=>b.id===id);}
+
+/* ================= persistence (P0-2) ================= */
+const STORE_KEY='argument-builder:v1';
+let saveTimer=null;
+function saveState(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{
+    try{
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        nextId:state.nextId,
+        blocks:state.blocks.map(b=>({id:b.id,label:b.label,x:b.x,y:b.y})),
+        wires:state.wires.map(w=>({id:w.id,from:w.from,to:w.to,type:w.type})),
+        expanded:[...state.expanded],
+      }));
+    }catch(e){/* ignore quota / disabled */}
+  },200);
+}
+function loadState(){
+  try{
+    const raw=localStorage.getItem(STORE_KEY); if(!raw) return false;
+    const s=JSON.parse(raw);
+    if(!s||!Array.isArray(s.blocks)) return false;
+    // harden: keep only blocks with numeric x/y and a string label
+    const validIds=new Set();
+    state.blocks=s.blocks.filter(b=>
+      b && typeof b.label==='string' && Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.id)
+    ).map(b=>{ validIds.add(b.id); return b; });
+    state.nextId=(s.nextId&&Number.isFinite(s.nextId))?s.nextId:(state.blocks.reduce((m,b)=>Math.max(m,b.id),0)+1);
+    // filter orphan wires referencing missing blocks
+    state.wires=(s.wires||[]).filter(w=>w && validIds.has(w.from) && validIds.has(w.to))
+      .map(w=>({id:String(w.id),from:w.from,to:w.to,type:w.type}));
+    state.expanded=new Set((s.expanded||[]).filter(id=>validIds.has(id)));
+    // return true if a valid store exists (even if empty) so an intentionally-cleared canvas survives refresh
+    return true;
+  }catch(e){return false;}
+}
+// call this after every mutation that should persist
+function persist(){ saveState(); }
+
+/* ================= block ops ================= */
+function addBlock(label='', x, y){
+  const rect=canvas.getBoundingClientRect();
+  const id=state.nextId++;
+  state.blocks.push({
+    id, label,
+    x: x ?? (rect.width/2 - 110 + (Math.random()*40-20)),
+    y: y ?? (rect.height/2 - 50 + (Math.random()*40-20)),
+  });
+  render(); syncFocus(id); persist();
+}
+function syncFocus(id){
+  requestAnimationFrame(()=>{const el=canvas.querySelector('[data-id="'+id+'"] .block__input'); if(el){el.focus();el.select();}});
+}
+function deleteBlock(id){
+  state.blocks=state.blocks.filter(b=>b.id!==id);
+  state.wires=state.wires.filter(w=>w.from!==id&&w.to!==id);
+  state.expanded.delete(id);
+  render(); persist();
+}
+function setLabel(id,label){
+  const b=B(id); if(b){b.label=label; renderSoft(); persist();}
+}
+// re-render per-block surfaces (role, err, why, truth) + verdict without rebuilding DOM (keeps input focus)
+function renderSoft(){
+  state.blocks.forEach(b=>{
+    const el=canvas.querySelector('.block[data-id="'+b.id+'"]');
+    if(el) updateBlockEl(el,b);
+    else renderBlockTruth(b);
+  });
+  renderVerdict();
+}
+function toggleTable(id){
+  state.expanded.has(id)?state.expanded.delete(id):state.expanded.add(id);
+  render(); persist();
+}
+
+/* ================= wire ops ================= */
+function startLink(from,type){
+  state.pending={from,type};
+  state.selectedWire=null;
+  render();
+}
+function cancelLink(){state.pending=null;render();}
+function finishLink(to){
+  const {from,type}=state.pending;
+  state.pending=null;
+  if(from===to) return render();
+  const dup=state.wires.find(w=>w.from===from&&w.to===to&&w.type===type);
+  if(dup) return render();
+  state.wires.push({id:'w'+(state.nextId++),from,to,type});
+  render(); persist();
+}
+function deleteWire(id){state.wires=state.wires.filter(w=>w.id!==id);state.selectedWire=null;render(); persist();}
+function selectWire(id){state.selectedWire=id;state.pending=null;render();}
+
+// AND-connected cluster (undirected) of AND wires containing start
+function andCluster(startId){
+  const seen=new Set([startId]); const stack=[startId];
+  const andWires=state.wires.filter(w=>w.type==='and');
+  while(stack.length){
+    const cur=stack.pop();
+    for(const w of andWires){
+      const other=w.from===cur?w.to:(w.to===cur?w.from:null);
+      if(other&&!seen.has(other)){seen.add(other);stack.push(other);}
+    }
+  }
+  return [...seen];
+}
+
+/* ================= validity (multi-conclusion: each ⊨ wire is its own step) ================= */
+// ---- P1-1: chain propagation helpers ----
+// which entails wire (if any) derives this block?
+function derivingWireOf(blockId){
+  return state.wires.find(w=>w.type==='entails'&&w.to===blockId) || null;
+}
+// all upstream step-ids this step transitively depends on (premises that are themselves Derived)
+function upstreamSteps(e, seen){
+  seen = seen || new Set();
+  const premiseIds=andCluster(e.from).filter(id=>id!==e.to);
+  for(const pid of premiseIds){
+    const up=derivingWireOf(pid);
+    if(up && !seen.has(up.id)){ seen.add(up.id); upstreamSteps(up, seen); }
+  }
+  return seen;
+}
+// a step is sound only if it's valid AND every upstream step is valid
+function stepSound(e, cache){
+  cache = cache || new Map();
+  if(cache.has(e.id)) return cache.get(e.id);
+  const r=evaluateStep(e);
+  let sound = r.state==='eval' && r.valid;
+  // cycle guard: mark optimistically BEFORE recursing upstream so mutual recursion short-circuits
+  cache.set(e.id, sound);
+  if(sound){
+    for(const upId of upstreamSteps(e)){
+      const upWire=state.wires.find(w=>w.id===upId);
+      if(upWire && !stepSound(upWire, cache)){ sound=false; cache.set(e.id,false); break; }
+    }
+  }
+  return sound;
+}
+function stepNumber(wireId){
+  // stable index over entails wires, in creation order
+  const ents=state.wires.filter(w=>w.type==='entails');
+  return ents.findIndex(w=>w.id===wireId)+1;
+}
+// core per-step evaluation — shared by the panel and the block's "why invalid" line
+// returns {state:'broken'|'parse'|'eval', err?, valid?, counter?, vars?, argStr?, premises?, conclusion?}
+function evaluateStep(e){
+  const conc=B(e.to), src=B(e.from);
+  if(!conc||!src) return {state:'broken'};
+  const premiseIds=andCluster(e.from).filter(id=>id!==e.to);
+  const parsed=premiseIds.map(id=>({id,b:B(id),...tryParse(B(id).label)}));
+  const cparse=tryParse(conc.label);
+  const bad=parsed.find(p=>p.err);
+  if(bad||cparse.err){
+    return {state:'parse', err:(bad?bad.err:cparse.err), who:bad?('Premise '+prettyRef(bad.id)):('Target '+prettyRef(e.to))};
+  }
+  const premises=parsed.map(p=>({ast:p.ast,label:B(p.id).label.trim(),id:p.id}));
+  const conclusion={ast:cparse.ast,label:conc.label.trim(),id:e.to};
+  const allVars=new Set();
+  parsed.forEach(p=>varsOf(p.ast,allVars)); varsOf(cparse.ast,allVars);
+  const vars=[...allVars].sort(); const n=vars.length;
+  const argStr = parsed.map(p=>pretty(p.ast)).join(' ∧ ') + ' ⊨ ' + pretty(cparse.ast);
+  const counter=[];
+  if(n<=20) for(let m=0;m<(1<<n);m++){
+    const env={}; vars.forEach((v,k)=>env[v]=!!((m>>(n-1-k))&1));
+    const allPrems=parsed.every(p=>evalAst(p.ast,env));
+    const c=evalAst(cparse.ast,env);
+    if(allPrems&&!c) counter.push({env});
+  }
+  return {state:'eval', valid:counter.length===0, counter, vars, argStr, premises, conclusion};
+}
+// P0-4: plain-English sentence for ONE counterexample row
+function ceSentence(r){
+  if(!r.counter||!r.counter.length) return '';
+  const row=r.counter[0];
+  const who=vars=>vars.map(v=>v+' is '+(row.env[v]?'true':'false')).join(' and ');
+  // pluralize the premise phrase
+  const premPhrase = r.premises.length>1
+    ? 'all of the premises are true'
+    : 'the premise is true';
+  return 'When '+who(r.vars)+', '+premPhrase+' but the conclusion '+
+         esc(r.conclusion.label)+' is false.';
+}
+function renderVerdict(){
+  const entails=state.wires.filter(w=>w.type==='entails');
+  if(!entails.length){
+    verdictBody.innerHTML='<span class="badge badge--idle">no ⊨ wire</span>'+
+      '<p class="note">Draw a ⊨ wire from a premise cluster to a proposition.</p>';return;
+  }
+  // P1-1: overall proof verdict — ✓ only if every step is sound (valid + all upstream valid)
+  const cache=new Map();
+  const allSound=entails.every(e=>stepSound(e,cache));
+  const firstBad = entails.find(e=>!stepSound(e,cache));
+  let overall = '<div class="overall"><span class="step__num">Overall</span> ';
+  overall+= allSound
+    ? '<span class="badge badge--valid">✓ Proof valid</span>'
+    : '<span class="badge badge--invalid">✗ Step '+stepNumber(firstBad.id)+' invalid</span>';
+  overall+='</div>';
+  const parts=entails.map(e=>{
+    const r=evaluateStep(e);
+    if(r.state==='broken') return stepShell(e,'','broken wire','idle');
+    if(r.state==='parse') return stepShell(e, r.who+': '+r.err, 'parse error','idle');
+    let body='<div class="verdict__arg">'+esc(r.argStr)+'</div>';
+    body+= r.valid
+      ? '<span class="badge badge--valid">✓ Valid — no counterexample</span>'
+      : '<span class="badge badge--invalid">✗ Invalid — '+r.counter.length+' counterexample(s)</span>';
+    if(!r.valid){
+      body+='<p class="ce-sentence">'+ceSentence(r)+'</p>';
+      body+='<ul class="ce-list">'+r.counter.slice(0,8).map(row=>
+        r.vars.map(v=>v+'='+(row.env[v]?'T':'F')).join(', ')
+      ).map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul>';
+      if(r.counter.length>8) body+='<p class="note">…and '+(r.counter.length-8)+' more.</p>';
+    }
+    return stepShell(e,body,r.valid?'✓ Valid':'✗ Invalid',r.valid?'valid':'invalid');
+  });
+  verdictBody.innerHTML=overall+'<hr style="border:0;border-top:0.06rem dashed var(--line);margin:0.4rem 0 0.6rem">'+parts.join('<hr style="border:0;border-top:0.06rem dashed var(--line);margin:0.6rem 0">');
+}
+// shell around each step's body, with a Step N header
+function stepShell(e,body,badgeText,badgeClass){
+  return '<div class="step">'+
+    '<div class="step__head"><span class="step__num">Step '+stepNumber(e.id)+'</span>'+
+    '<span class="badge badge--'+badgeClass+'">'+esc(badgeText)+'</span></div>'+
+    body+
+  '</div>';
+}
+function prettyRef(id){
+  // a short human label for a premise/target id in error messages
+  const b=B(id); if(!b) return '?';
+  const lbl=b.label.trim()||'(empty)';
+  return '“'+lbl+'”';
+}
+function pretty(n){
+  if(!n) return '?';
+  const sym={and:'∧',or:'∨',imp:'→',iff:'↔'};
+  if(n.t==='var') return n.v;
+  if(n.t==='not') return '¬'+pretty(n.a);
+  return '('+pretty(n.a)+' '+sym[n.t]+' '+pretty(n.b)+')';
+}
+function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+/* ================= rendering ================= */
+function render(){
+  // blocks
+  const existing={};
+  canvas.querySelectorAll('.block').forEach(el=>existing[el.dataset.id]=el);
+  const present=new Set();
+  state.blocks.forEach(b=>{
+    let el=existing[b.id];
+    if(!el){el=mkBlockEl(b); canvas.appendChild(el);}
+    present.add(String(b.id));
+    updateBlockEl(el,b);
+  });
+  Object.keys(existing).forEach(id=>{if(!present.has(id)) existing[id].remove();});
+
+  emptyHint.style.display = state.blocks.length? 'none':'grid';
+  renderWires();
+  renderVerdict();
+  renderLinkBanner();
+}
+function mkBlockEl(b){
+  const el=document.createElement('div'); el.className='block'; el.dataset.id=b.id;
+  el.innerHTML=`
+    <div class="block__head"><span class="block__role"></span><span class="block__hint">drag</span></div>
+    <input class="block__input" spellcheck="false" autocomplete="off">
+    <div class="ops" data-ops>
+      <button type="button" class="ops__b" data-sym="¬">¬</button>
+      <button type="button" class="ops__b" data-sym="∧">∧</button>
+      <button type="button" class="ops__b" data-sym="∨">∨</button>
+      <button type="button" class="ops__b" data-sym="→">→</button>
+      <button type="button" class="ops__b" data-sym="↔">↔</button>
+    </div>
+    <div class="block__err"></div>
+    <div class="block__why"></div>
+    <div class="block__truthwrap"></div>
+    <div class="block__actions">
+      <button class="button button--secondary" data-act="and">∧ Link</button>
+      <button class="button button--secondary" data-act="entails">⊨ Link</button>
+      <button class="button button--tertiary" data-act="table" data-hideable>table</button>
+      <button class="button button--danger" data-act="del">delete</button>
+    </div>`;
+  // input
+  const input=el.querySelector('.block__input');
+  input.addEventListener('input',()=>setLabel(b.id,input.value));
+  // operator palette (P0-3): insert symbol at caret — but if a link is pending, finish the link instead
+  el.querySelectorAll('[data-ops] [data-sym]').forEach(btn=>{
+    btn.addEventListener('click',(ev)=>{
+      ev.stopPropagation();
+      if(state.pending){ finishLink(b.id); return; }
+      const sym=btn.dataset.sym;
+      const s=input.selectionStart??input.value.length;
+      const e=input.selectionEnd??input.value.length;
+      const next=input.value.slice(0,s)+sym+input.value.slice(e);
+      setLabel(b.id,next);
+      requestAnimationFrame(()=>{input.focus(); const pos=s+sym.length; input.setSelectionRange(pos,pos);});
+    });
+  });
+  // actions
+  el.addEventListener('click',(ev)=>{
+    // while a link is pending, ANY click on a different block finishes the link
+    // (ops buttons handle their own case via stopPropagation + their pending guard)
+    if(state.pending && state.pending.from!==b.id){ ev.stopPropagation(); finishLink(b.id); return; }
+    const act=ev.target.closest('[data-act]'); 
+    if(act){
+      const a=act.dataset.act;
+      if(a==='and') startLink(b.id,'and');
+      else if(a==='entails') startLink(b.id,'entails');
+      else if(a==='table') toggleTable(b.id);
+      else if(a==='del') deleteBlock(b.id);
+      return;
+    }
+    // body click with no pending link = no-op (clicking input focuses it natively)
+  });
+  // drag from header
+  const head=el.querySelector('.block__head');
+  head.addEventListener('mousedown',(ev)=>beginDrag(ev,b.id));
+  return el;
+}
+function updateBlockEl(el,b){
+  el.style.left=b.x+'px'; el.style.top=b.y+'px';
+  const input=el.querySelector('.block__input');
+  if(document.activeElement!==input) input.value=b.label;
+  // role label
+  const role=el.querySelector('.block__role');
+  const idx=state.blocks.indexOf(b)+1;
+  // a block is “derived” iff some ⊨ wire points to it
+  const entailTo=state.wires.find(w=>w.type==='entails'&&w.to===b.id);
+  if(entailTo){
+    role.textContent = 'Derived · Step '+stepNumber(entailTo.id);
+    role.className = 'block__role block__role--c';
+  }else{
+    role.textContent = 'Premise · P'+idx;
+    role.className = 'block__role';
+  }
+  el.classList.toggle('block--conclusion',!!entailTo);
+  // classes
+  el.classList.toggle('block--targetable', !!(state.pending && state.pending.from!==b.id));
+  // parse error
+  const errEl=el.querySelector('.block__err');
+  const p=tryParse(b.label);
+  if(b.label.trim()===''){errEl.textContent='';}
+  else if(p.err){errEl.textContent=p.err;}
+  else errEl.textContent='';
+  // "why invalid": on a Derived block, show the counterexample(s) when the step is invalid
+  const whyEl=el.querySelector('.block__why');
+  if(entailTo){
+    const r=evaluateStep(entailTo);
+    if(r.state==='eval' && !r.valid){
+      const rows=r.counter.slice(0,4).map(row=>
+        r.vars.map(v=>v+'='+(row.env[v]?'T':'F')).join(', ')
+      );
+      whyEl.className='block__why block__why--bad';
+      whyEl.innerHTML='<span class="block__why__head">✗ invalid at:</span>'+
+        rows.map(s=>esc(s)).join('<br>')+
+        (r.counter.length>4?'<br>…+'+(r.counter.length-4)+' more':'');
+    }else if(r.state==='eval' && r.valid){
+      // P1-1: even if this step is valid, check upstream chain
+      const upBad=[...upstreamSteps(entailTo)].map(id=>state.wires.find(w=>w.id===id))
+        .filter(w=>{ const ur=evaluateStep(w); return !(ur.state==='eval'&&ur.valid); });
+      if(upBad.length){
+        whyEl.className='block__why block__why--warn';
+        whyEl.innerHTML='<span style="color:var(--invalid);font-weight:700">⚠ depends on invalid Step '+
+          upBad.map(w=>stepNumber(w.id)).join(', ')+'</span>';
+      }else{
+        whyEl.className='block__why block__why--good';
+        whyEl.innerHTML='<span style="color:var(--valid);font-weight:700">✓ valid</span>';
+      }
+    }else{
+      whyEl.className='block__why';
+      whyEl.innerHTML=''; // parse error elsewhere already shown on its own block
+    }
+  }else{
+    whyEl.className='block__why';
+    whyEl.innerHTML='';
+  }
+  // truth table
+  renderBlockTruth(b,el);
+  // hide the table button when the block’s formula is trivial (atomic or ¬atomic) and it’s not a Derived block
+  const tableBtn=el.querySelector('[data-act="table"]');
+  let trivial=false;
+  if(tableBtn){
+    const tp=tryParse(b.label);
+    if(!tp.err && b.label.trim()){
+      const a=tp.ast;
+      trivial = a.t==='var' || (a.t==='not' && a.a && a.a.t==='var');
+    }
+    const isDerived=!!state.wires.find(w=>w.type==='entails'&&w.to===b.id);
+    tableBtn.style.display = (trivial && !isDerived) ? 'none' : '';
+  }
+}
+function renderBlockTruth(b, el){
+  el=el||canvas.querySelector('.block[data-id="'+b.id+'"]'); if(!el) return;
+  const wrap=el.querySelector('.block__truthwrap');
+  if(!state.expanded.has(b.id)){wrap.innerHTML='';return;}
+  const p=tryParse(b.label);
+  if(p.err||!b.label.trim()){wrap.innerHTML='<p class="note" style="padding:.2rem 0 0">fix the formula to see its table.</p>';return;}
+
+  // Is this block the target of a ⊨ wire (a Derived block)?
+  const entailTo=state.wires.find(w=>w.type==='entails'&&w.to===b.id);
+  if(entailTo){
+    wrap.innerHTML=renderArgumentTable(entailTo);
+    return;
+  }
+  // plain Premise block: show its own simple truth table (vars + formula)
+  const {vars,rows}=blockTruth(p.ast);
+  const valHeader = b.label.length>14? 'φ' : b.label;
+  // P1-3: classify the formula
+  const allT=rows.every(r=>r.val), allF=rows.every(r=>!r.val);
+  const cls = rows.length===0 ? '' : (allT?'tautology':(allF?'contradiction':'contingent'));
+  const clsBadge = cls ? '<span class="badge badge--'+(cls==='tautology'?'valid':(cls==='contradiction'?'invalid':'idle'))+'" style="margin:.3rem 0">'+
+    (cls==='tautology'?'✓ tautology':(cls==='contradiction'?'✗ contradiction':'⊙ contingent'))+'</span>' : '';
+  let html='<div class="block__truth">'+clsBadge+
+    '<table class="tt"><thead><tr>'+
+    vars.map(v=>'<th>'+esc(v)+'</th>').join('')+'<th>'+esc(valHeader)+'</th></tr></thead><tbody>';
+  html+=rows.map(r=>'<tr>'+vars.map(v=>'<td>'+(r.env[v]?'T':'F')+'</td>').join('')+
+    '<td class="'+(r.val?'v-t':'v-f')+'">'+(r.val?'T':'F')+'</td></tr>').join('');
+  html+='</tbody></table></div>';
+  wrap.innerHTML=html;
+}
+// Derived-block table: premise cols + conclusion col + conditional φ = (premises) → conclusion
+function renderArgumentTable(e){
+  const r=evaluateStep(e);
+  if(r.state==='broken') return '<p class="note" style="padding:.2rem 0 0">broken wire.</p>';
+  if(r.state==='parse') return '<p class="note" style="padding:.2rem 0 0">parse error: '+esc(r.err)+'</p>';
+  const {vars,counter,valid,argStr}=r;
+  // premise columns
+  const premiseIds=andCluster(e.from).filter(id=>id!==e.to);
+  const premiseParsed=premiseIds.map(id=>({id,ast:tryParse(B(id).label).ast,label:B(id).label.trim()}));
+  const conc=B(e.to); const concAst=tryParse(conc.label).ast;
+  const condAst={t:'imp',a:premiseParsed.reduceRight((acc,p)=> acc?{t:'and',a:p.ast,b:acc}:p.ast, null), b:concAst};
+  // headers
+  const premiseHeaders=premiseParsed.map((p,i)=> '<th>'+esc(p.label.length>10?'P'+(i+1):p.label)+'</th>').join('');
+  const concHeader = conc.label.trim().length>10 ? 'concl' : conc.label.trim();
+  // rows: one per env over vars (reuse the same iteration as evaluateStep)
+  const n=vars.length;
+  let body='';
+  const counterEnvs=new Set(counter.map(row=>vars.map(v=>row.env[v]?'1':'0').join('')));
+  for(let m=0;m<(1<<n);m++){
+    const env={}; vars.forEach((v,k)=>env[v]=!!((m>>(n-1-k))&1));
+    const key=vars.map(v=>env[v]?'1':'0').join('');
+    const isCE=counterEnvs.has(key);
+    const cond=evalAst(condAst,env);
+    const tds=premiseParsed.map(p=>'<td>'+(evalAst(p.ast,env)?'T':'F')+'</td>').join('')
+      +'<td>'+(evalAst(concAst,env)?'T':'F')+'</td>'
+      +'<td class="'+(cond?'v-t':'v-f')+'">'+(cond?'T':'F')+(isCE?' ⚠':'')+'</td>';
+    body+='<tr'+(isCE?' class="tt-ce"':'')+'>'+tds+'</tr>';
+  }
+  const verdict = valid
+    ? '<span class="badge badge--valid" style="margin:.3rem 0">✓ tautology → valid</span>'
+    : '<span class="badge badge--invalid" style="margin:.3rem 0">✗ not tautology → invalid</span>';
+  return '<div class="block__truth">'+
+    '<p class="note" style="padding:.1rem 0 .3rem;margin:0">'+esc(argStr)+' → φ</p>'+
+    '<table class="tt"><thead><tr>'+premiseHeaders+
+      '<th>'+esc(concHeader)+'</th><th>φ</th></tr></thead><tbody>'+body+'</tbody></table>'+
+    verdict+
+  '</div>';
+}
+function rectEdge(halo,target){
+  // point on the halo rectangle boundary, along the ray from its center to target
+  const dx=target.x-halo.cx, dy=target.y-halo.cy;
+  if(dx===0&&dy===0) return {x:halo.cx,y:halo.cy};
+  const hw=halo.w/2, hh=halo.h/2;
+  const s=Math.max(Math.abs(dx)/hw, Math.abs(dy)/hh);
+  return {x:halo.cx+dx/s, y:halo.cy+dy/s};
+}
+function renderWires(){
+  // remove old paths + halos (keep marker defs); nubs live in the canvas, not the svg
+  [...wiresSvg.querySelectorAll(':scope > path, :scope > rect.halo')].forEach(n=>n.remove());
+  [...canvas.querySelectorAll('.wire-del')].forEach(n=>n.remove());
+  const crect=canvas.getBoundingClientRect();
+  const center=(id)=>{const el=canvas.querySelector('.block[data-id="'+id+'"]'); if(!el) return null;
+    const r=el.getBoundingClientRect(); return {x:r.left-crect.left+r.width/2, y:r.top-crect.top+r.height/2};};
+
+  // --- Option A: draw a halo around each ⊨ source's ∧-cluster (the premises) ---
+  const halos=new Map();
+  state.wires.filter(w=>w.type==='entails').forEach(e=>{
+    const ids=andCluster(e.from).filter(id=>id!==e.to);
+    if(ids.length<2) return;            // no halo for a lone premise
+    let minX=1/0,minY=1/0,maxX=-1/0,maxY=-1/0;
+    ids.forEach(id=>{
+      const el=canvas.querySelector('.block[data-id="'+id+'"]'); if(!el) return;
+      const r=el.getBoundingClientRect();
+      const x=r.left-crect.left, y=r.top-crect.top;
+      minX=Math.min(minX,x); minY=Math.min(minY,y);
+      maxX=Math.max(maxX,x+r.width); maxY=Math.max(maxY,y+r.height);
+    });
+    if(minX===1/0) return;
+    const pad=14;
+    minX-=pad; minY-=pad; maxX+=pad; maxY+=pad;
+    const halo={x:minX,y:minY,w:maxX-minX,h:maxY-minY,cx:(minX+maxX)/2,cy:(minY+maxY)/2};
+    const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x',halo.x); rect.setAttribute('y',halo.y);
+    rect.setAttribute('width',halo.w); rect.setAttribute('height',halo.h);
+    rect.setAttribute('rx','16'); rect.setAttribute('ry','16');
+    rect.setAttribute('fill','none');
+    rect.setAttribute('stroke','var(--accent)');
+    rect.setAttribute('stroke-width','0.12rem');
+    rect.setAttribute('stroke-dasharray','0.35rem 0.28rem');
+    rect.setAttribute('opacity','0.55');
+    rect.classList.add('halo');
+    wiresSvg.appendChild(rect);
+    halos.set(e.id,halo);
+  });
+
+  state.wires.forEach(w=>{
+    const b=center(w.to); if(!b) return;
+    // ⊨ arrow starts on the cluster-halo edge (the whole ∧), not the source block center
+    const a = (w.type==='entails' && halos.has(w.id)) ? rectEdge(halos.get(w.id),b) : center(w.from);
+    if(!a) return;
+    const color = w.type==='entails' ? 'var(--valid)' : 'var(--accent)';
+    const dash  = w.type==='entails' ? '' : '';
+    const d='M'+a.x+','+a.y+' L'+b.x+','+b.y;
+    // hit area (clickable)
+    const hit=document.createElementNS('http://www.w3.org/2000/svg','path');
+    hit.setAttribute('d',d); hit.setAttribute('class','hit');
+    hit.setAttribute('stroke','transparent'); hit.setAttribute('stroke-width','16'); hit.setAttribute('fill','none');
+    hit.addEventListener('click',(e)=>{e.stopPropagation();selectWire(w.id);});
+    wiresSvg.appendChild(hit);
+    // visible
+    const vis=document.createElementNS('http://www.w3.org/2000/svg','path');
+    vis.setAttribute('d',d);
+    vis.setAttribute('stroke',color);
+    vis.setAttribute('stroke-width', state.selectedWire===w.id?'0.32rem':'0.17rem');
+    vis.setAttribute('stroke-dasharray',dash);
+    vis.setAttribute('fill','none');
+    if(w.type==='entails') vis.setAttribute('marker-end','url(#arrowEntails)');
+    wiresSvg.appendChild(vis);
+    // delete nub if selected
+    if(state.selectedWire===w.id){
+      const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+      const btn=document.createElement('button');
+      btn.className='wire-del'; btn.textContent='×';
+      btn.style.left=mid.x+'px'; btn.style.top=mid.y+'px';
+      btn.addEventListener('click',(e)=>{e.stopPropagation();deleteWire(w.id);});
+      canvas.appendChild(btn);
+    }
+  });
+}
+function renderLinkBanner(){
+  const old=canvas.querySelector('.link-banner'); if(old) old.remove();
+  if(!state.pending) return;
+  const sym=state.pending.type==='entails'?'⊨':'∧';
+  const b=document.createElement('div');
+  b.className='link-banner';
+  b.innerHTML='Click a block to connect with <strong>'+sym+'</strong>'+
+    '<button>cancel (esc)</button>';
+  b.querySelector('button').addEventListener('click',cancelLink);
+  canvas.appendChild(b);
+}
+
+/* ================= dragging ================= */
+function beginDrag(ev,id){
+  if(state.pending) return;
+  const b=B(id); if(!b) return;
+  const crect=canvas.getBoundingClientRect();
+  const er=ev.currentTarget.getBoundingClientRect();
+  state.dragging={id, dx:ev.clientX-er.left, dy:ev.clientY-er.top, crect};
+  const el=canvas.querySelector('.block[data-id="'+id+'"]'); el.classList.add('block--dragging');
+  ev.preventDefault();
+}
+window.addEventListener('mousemove',(ev)=>{
+  if(!state.dragging) return;
+  const {id,dx,dy}=state.dragging;
+  const b=B(id); if(!b) return;
+  const crect=canvas.getBoundingClientRect();
+  let x=ev.clientX-crect.left-dx, y=ev.clientY-crect.top-dy;
+  x=Math.max(0,Math.min(crect.width-40,x));
+  y=Math.max(0,Math.min(crect.height-30,y));
+  b.x=x; b.y=y;
+  const el=canvas.querySelector('.block[data-id="'+id+'"]');
+  if(el){el.style.left=x+'px'; el.style.top=y+'px';}
+  renderWires();
+});
+window.addEventListener('mouseup',()=>{
+  if(state.dragging){
+    const el=canvas.querySelector('.block[data-id="'+state.dragging.id+'"]');
+    if(el) el.classList.remove('block--dragging');
+    state.dragging=null;
+    persist();
+  }
+});
+
+/* ================= global events ================= */
+canvas.addEventListener('click',(ev)=>{
+  // click on empty canvas
+  if(ev.target===canvas||ev.target===wiresSvg||ev.target.classList.contains('canvas')){
+    if(state.pending) cancelLink();
+    if(state.selectedWire){state.selectedWire=null;render();}
+  }
+});
+window.addEventListener('keydown',(ev)=>{
+  if(ev.target.tagName==='INPUT') return;
+  if(ev.key==='Escape'){if(state.pending||state.selectedWire){state.pending=null;state.selectedWire=null;render();}}
+  if((ev.key==='Delete'||ev.key==='Backspace')&&state.selectedWire){ev.preventDefault();deleteWire(state.selectedWire);}
+});
+
+document.getElementById('addBtn').addEventListener('click',()=>addBlock('p'));
+document.getElementById('clearBtn').addEventListener('click',()=>{
+  state.blocks=[];state.wires=[];state.expanded.clear();state.pending=null;state.selectedWire=null;render(); persist();
+});
+
+// ---- preset library (shared) ----
+const PRESETS=[
+  {key:'mp', name:'Modus Ponens',            blocks:['p','p → q','q'],            wires:[['and',0,1],['entails',1,2]], expand:[1]},
+  {key:'mt', name:'Modus Tollens',           blocks:['p → q','¬q','¬p'],         wires:[['and',0,1],['entails',1,2]], expand:[1]},
+  {key:'hs', name:'Hypothetical Syllogism',  blocks:['p → q','q → r','p → r'],   wires:[['and',0,1],['entails',1,2]], expand:[1]},
+  {key:'ds', name:'Disjunctive Syllogism',   blocks:['p ∨ q','¬p','q'],          wires:[['and',0,1],['entails',1,2]], expand:[1]},
+  {key:'ac', name:'Affirming the Consequent',blocks:['p → q','q','p'],           wires:[['and',0,1],['entails',1,2]], expand:[1]},
+  {key:'da', name:'Denying the Antecedent',  blocks:['p → q','¬p','¬q'],         wires:[['and',0,1],['entails',1,2]], expand:[1]},
+];
+function loadPreset(p){
+  state.blocks=[];state.wires=[];state.expanded.clear();state.nextId=1;state.pending=null;state.selectedWire=null;
+  const ids=p.blocks.map((label,i)=>{
+    const id=state.nextId++;
+    const col=i%2, row=Math.floor(i/2);
+    state.blocks.push({id,label,x:60+col*300,y:60+row*180});
+    return id;
+  });
+  p.wires.forEach(([type,a,b])=>state.wires.push({id:'w'+state.nextId++,from:ids[a],to:ids[b],type}));
+  p.expand.forEach(i=>state.expanded.add(ids[i]));
+  render(); persist();
+}
+function loadExample(){ loadPreset(PRESETS[0]); }
+// populate preset dropdown (after PRESETS is defined)
+(function(){
+  const sel=document.getElementById('presetSel');
+  PRESETS.forEach(p=>{ const o=document.createElement('option'); o.value=p.key; o.textContent=p.name; sel.appendChild(o); });
+  sel.addEventListener('change',()=>{
+    const p=PRESETS.find(x=>x.key===sel.value);
+    if(p) loadPreset(p);
+    sel.value='';
+  });
+})();
+
+// boot: restore saved work, else load the Modus Ponens example
+if(!loadState()) loadExample();
+else render();
+// flush any pending debounce on tab close / refresh so the last keystrokes survive
+window.addEventListener('beforeunload',()=>{ clearTimeout(saveTimer); try{ localStorage.setItem(STORE_KEY, JSON.stringify({
+  nextId:state.nextId,
+  blocks:state.blocks.map(b=>({id:b.id,label:b.label,x:b.x,y:b.y})),
+  wires:state.wires.map(w=>({id:w.id,from:w.from,to:w.to,type:w.type})),
+  expanded:[...state.expanded],
+})); }catch(e){} });
+window.addEventListener('resize',renderWires);
+// test hook: position blocks deterministically (kept tiny + guarded)
+if (location.protocol==='file:') window.__argBuilder={ state,
+  moveBlock(label,x,y){ const b=state.blocks.find(b=>b.label.trim()===label.trim()); if(b){b.x=x;b.y=y;render();} },
+  reset(){ localStorage.removeItem(STORE_KEY); loadExample(); } };
+</script>
+</body>
+</html>
