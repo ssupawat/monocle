@@ -249,7 +249,7 @@ body{
         </marker>
       </defs>
     </svg>
-    <div class="empty-hint" id="emptyHint">No blocks yet. Click “+ Add block”.</div>
+    <div class="empty-hint" id="emptyHint">No blocks yet. Click “Add block”.</div>
   </div>
 
   <!-- top-center floating action pill -->
@@ -480,11 +480,12 @@ function persist(){ saveState(); }
 /* ================= block ops ================= */
 function addBlock(label='', x, y){
   const rect=canvas.getBoundingClientRect();
+  const vw=rect.width/state.zoom, vh=rect.height/state.zoom;
   const id=state.nextId++;
   state.blocks.push({
     id, label,
-    x: x ?? (rect.width/2 - 110 + (Math.random()*40-20)),
-    y: y ?? (rect.height/2 - 50 + (Math.random()*40-20)),
+    x: x ?? (vw/2 - 110 + (Math.random()*40-20)),
+    y: y ?? (vh/2 - 50 + (Math.random()*40-20)),
   });
   render(); syncFocus(id); persist();
 }
@@ -654,7 +655,9 @@ function branchRootOf(cid, seen){
   const pids=premisesOf(cid);
   const derivedPremises=pids.filter(pid=>premisesOf(pid).length>0);
   if(!derivedPremises.length) return cid;  // depth-1: own root
-  return branchRootOf(derivedPremises[0], seen);
+  // merge: take the smallest id among all derived premises' roots for stable assignment
+  const roots=derivedPremises.map(dp=>branchRootOf(dp, seen));
+  return Math.min(...roots);
 }
 function computeBranches(conclusions){
   const map=new Map();
@@ -996,9 +999,9 @@ function renderWires(){
   // remove old paths + halos (keep marker defs); nubs live in the canvas, not the svg
   [...wiresSvg.querySelectorAll(':scope > path, :scope > rect.halo')].forEach(n=>n.remove());
   [...canvas.querySelectorAll('.wire-del')].forEach(n=>n.remove());
-  const crect=canvas.getBoundingClientRect();
-  const center=(id)=>{const el=canvas.querySelector('.block[data-id="'+id+'"]'); if(!el) return null;
-    const r=el.getBoundingClientRect(); return {x:r.left-crect.left+r.width/2, y:r.top-crect.top+r.height/2};};
+  // use pre-transform box (offsetWidth/Height) so wires/halos are zoom-independent
+  const center=(id)=>{const el=canvas.querySelector('.block[data-id="'+id+'"]'); const b=B(id); if(!el||!b) return null;
+    return {x:b.x+el.offsetWidth/2, y:b.y+el.offsetHeight/2};};
 
   // --- halo around each conclusion's premise cluster ---
   const halos=new Map();
@@ -1007,11 +1010,10 @@ function renderWires(){
     if(ids.length<2) return;            // no halo for a lone premise
     let minX=1/0,minY=1/0,maxX=-1/0,maxY=-1/0;
     ids.forEach(id=>{
-      const el=canvas.querySelector('.block[data-id="'+id+'"]'); if(!el) return;
-      const r=el.getBoundingClientRect();
-      const x=r.left-crect.left, y=r.top-crect.top;
+      const el=canvas.querySelector('.block[data-id="'+id+'"]'); const b=B(id); if(!el||!b) return;
+      const x=b.x, y=b.y, w=el.offsetWidth, h=el.offsetHeight;
       minX=Math.min(minX,x); minY=Math.min(minY,y);
-      maxX=Math.max(maxX,x+r.width); maxY=Math.max(maxY,y+r.height);
+      maxX=Math.max(maxX,x+w); maxY=Math.max(maxY,y+h);
     });
     if(minX===1/0) return;
     const pad=14;

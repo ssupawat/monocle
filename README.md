@@ -36,7 +36,7 @@ Open `index.html` in a browser. No build step.
 | Symbol | Meaning | Typing |
 |--------|---------|--------|
 | ¬ | not | `!` |
-| ∧ | and | `&` or `*` |
+| ∧ | and | `&` or `·` |
 | ∨ | or | `\|` |
 | → | implies | `->` |
 | ↔ | iff | `<->` |
