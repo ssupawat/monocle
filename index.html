@@ -213,6 +213,12 @@ body{
 .validity-fab .material-icons{font-size:1.3rem;color:#fff}
 .help-fab:hover{background:#1c2630;transform:scale(1.05)}
 .help-fab[aria-expanded="true"]{background:var(--accent)}
+.tip{position:fixed;z-index:100;background:var(--ink);color:#fff;font-size:0.75rem;font-weight:500;padding:0.3rem 0.6rem;border-radius:0.3rem;pointer-events:none;white-space:nowrap;box-shadow:0 0.1rem 0.4rem #0003;transform:translateX(-50%)}
+.tip::after{content:'';position:absolute;left:50%;bottom:-0.25rem;transform:translateX(-50%);border:0.25rem solid transparent;border-top-color:var(--ink);border-bottom:0}
+.hint{position:fixed;top:4rem;left:50%;transform:translateX(-50%);z-index:30;background:var(--content);border:0.0625rem solid var(--line);border-radius:0.5rem;padding:0.7rem 0.9rem;box-shadow:0 0.25rem 0.8rem #00000026;display:flex;flex-direction:column;gap:0.5rem;max-width:24rem;pointer-events:none}
+.hint p{margin:0;font-size:0.82rem;color:var(--ink);line-height:1.4}
+.hint__close{align-self:flex-end;background:var(--accent);color:#fff;border:0;border-radius:0.3rem;padding:0.25rem 0.7rem;font:inherit;font-size:0.75rem;font-weight:600;cursor:pointer;pointer-events:auto}
+.hint__close:hover{background:#3451c4}
 .help-pop{
   position:fixed;bottom:4rem;right:1.1rem;z-index:21;
   width:min(24rem,calc(100vw - 2.2rem));max-height:calc(100vh - 6rem);overflow:auto;
@@ -258,18 +264,27 @@ body{
 
   <!-- zoom widget (bottom-left) -->
   <div class="zoom-widget" id="zoomWidget">
-    <button class="zoom-btn" id="zoomOut" title="Zoom out"><span class="material-icons">remove</span></button>
-    <button class="zoom-pct" id="zoomPct" title="Reset to 100%">100%</button>
-    <button class="zoom-btn" id="zoomIn" title="Zoom in"><span class="material-icons">add</span></button>
-    <button class="zoom-btn" id="zoomFit" title="Fit to screen"><span class="material-icons">fit_screen</span></button>
+    <button class="zoom-btn" id="zoomOut" data-tip="Zoom out"><span class="material-icons">remove</span></button>
+    <button class="zoom-pct" id="zoomPct" data-tip="Reset to 100%">100%</button>
+    <button class="zoom-btn" id="zoomIn" data-tip="Zoom in"><span class="material-icons">add</span></button>
+    <button class="zoom-btn" id="zoomFit" data-tip="Fit to screen"><span class="material-icons">fit_screen</span></button>
   </div>
 
   <!-- floating fabs (bottom-right, Excalidraw-style) -->
-  <button class="validity-fab" id="validityFab" aria-expanded="false" title="Show validity"><span class="material-icons">rule</span></button>
+  <button class="validity-fab" id="validityFab" aria-expanded="false" data-tip="Show validity panel"><span class="material-icons">rule</span></button>
 </main>
 
 <!-- help toggle (fixed bottom-right) -->
-<button class="help-fab" id="helpFab" aria-expanded="false" aria-label="How it works"><span class="material-icons">help_outline</span></button>
+<button class="help-fab" id="helpFab" aria-expanded="false" aria-label="How it works" data-tip="How it works"><span class="material-icons">help_outline</span></button>
+
+<!-- shared tooltip -->
+<div class="tip" id="tip" hidden></div>
+
+<!-- first-visit hint -->
+<aside class="hint" id="hint" hidden>
+  <p><strong>Tip:</strong> Drag on empty canvas to lasso-select premises, then click a block to set it as the conclusion.</p>
+  <button class="hint__close" id="hintClose">Got it</button>
+</aside>
 
 <section class="help-pop" id="helpPop" hidden>
   <h2>How it works</h2>
@@ -777,7 +792,7 @@ function render(){
 function mkBlockEl(b){
   const el=document.createElement('div'); el.className='block'; el.dataset.id=b.id;
   el.innerHTML=`
-    <div class="block__head"><span class="block__role"></span><button class="icon-btn block__close" data-act="del" title="Delete block"><span class="material-icons">close</span></button></div>
+    <div class="block__head"><span class="block__role"></span><button class="icon-btn block__close" data-act="del" data-tip="Delete this block"><span class="material-icons">close</span></button></div>
     <input class="block__input" spellcheck="false" autocomplete="off">
     <div class="ops" data-ops>
       <button type="button" class="ops__b" data-sym="¬">¬</button>
@@ -790,7 +805,7 @@ function mkBlockEl(b){
     <div class="block__why"></div>
     <div class="block__truthwrap"></div>
     <div class="block__actions">
-      <button class="icon-btn" data-act="table" title="Truth table"><span class="material-icons">grid_on</span></button>
+      <button class="icon-btn" data-act="table" data-tip="Show truth table"><span class="material-icons">grid_on</span></button>
     </div>`;
   // input
   const input=el.querySelector('.block__input');
@@ -1303,7 +1318,7 @@ document.getElementById('resetBtn').addEventListener('click',()=>{
   const fab=document.getElementById('validityFab'), sb=document.getElementById('sidebar');
   const KEY='argument-builder:panel';
   const set=(open)=>{
-    sb.hidden=!open; fab.setAttribute('aria-expanded',open?'true':'false'); fab.title=open?'Hide validity':'Show validity';
+    sb.hidden=!open; fab.setAttribute('aria-expanded',open?'true':'false'); fab.setAttribute('data-tip',open?'Hide validity panel':'Show validity panel');
     fab.style.left = open ? '22rem' : '1rem';
     try{ localStorage.setItem(KEY, open?'1':'0'); }catch(e){}
     // canvas size changed → recompute wires
@@ -1341,6 +1356,41 @@ window.addEventListener('resize',renderWires);
 if (location.protocol==='file:') window.__argBuilder={ state,
   moveBlock(label,x,y){ const b=state.blocks.find(b=>b.label.trim()===label.trim()); if(b){b.x=x;b.y=y;render();} },
   reset(){ localStorage.removeItem(STORE_KEY); loadExample(); } };
+
+// ---- custom tooltips (data-tip) ----
+(function(){
+  const tip=document.getElementById('tip');
+  let target=null;
+  function show(el){
+    const text=el.getAttribute('data-tip');
+    if(!text) return;
+    target=el; tip.textContent=text; tip.hidden=false;
+    place();
+  }
+  function place(){
+    if(!target) return;
+    const r=target.getBoundingClientRect();
+    tip.style.left=(r.left+r.width/2)+'px';
+    tip.style.top=(r.top-tip.offsetHeight-6)+'px';
+  }
+  function hide(){ target=null; tip.hidden=true; }
+  document.addEventListener('mouseover',(e)=>{ const el=e.target.closest('[data-tip]'); if(el) show(el); else if(!e.target.closest('.tip')) hide(); });
+  document.addEventListener('mousemove',()=>{ if(target) place(); });
+  document.addEventListener('mouseout',(e)=>{ if(e.target.closest('[data-tip]')&&!e.relatedTarget?.closest('[data-tip]')) hide(); });
+})();
+
+// ---- first-visit hint ----
+(function(){
+  const KEY='monocle:hintSeen';
+  const hint=document.getElementById('hint');
+  let seen=false;
+  try{ seen=localStorage.getItem(KEY)==='1'; }catch(e){}
+  if(!seen){ hint.hidden=false; }
+  document.getElementById('hintClose').addEventListener('click',()=>{
+    hint.hidden=true;
+    try{ localStorage.setItem(KEY,'1'); }catch(e){}
+  });
+})();
 </script>
 </body>
 </html>
