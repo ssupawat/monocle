@@ -395,6 +395,21 @@ try {
   const tags = await page.evaluate(()=>[...document.querySelectorAll('.pattern-tag')].map(t=>t.textContent||''));
   check('Affirming the Consequent tagged as fallacy', tags.some(t=>/Affirming the Consequent.*fallacy/i.test(t)), tags.join(' | '));
 
+  // ---- TEST 12: loadExample fires on fresh storage (Modus Ponens default) ----
+  console.log('\n=== Test 12: loadExample default ===');
+  await page.evaluate(()=>{ localStorage.removeItem('argument-builder:v1'); });
+  await page.evaluate(()=>window.__argBuilder.reset());
+  await page.waitForTimeout(300);
+  const exBlocks = await page.evaluate(()=>[...document.querySelectorAll('.block__input')].map(i=>i.value.trim()));
+  check('example loads 3 blocks', exBlocks.length===3, JSON.stringify(exBlocks));
+  check('example has p', exBlocks.includes('p'));
+  check('example has p → q', exBlocks.includes('p → q'));
+  check('example has q (conclusion)', exBlocks.includes('q'));
+  const exWires = await page.evaluate(()=>window.__argBuilder.state.wires.map(w=>w.type));
+  check('example has 2 entails wires', exWires.length===2 && exWires.every(t=>t==='entails'), JSON.stringify(exWires));
+  const exVerdict = (await page.locator('#verdictBody').innerText()).replace(/\s+/g,' ').trim();
+  check('example verdict valid', /valid/i.test(exVerdict) && !/invalid/i.test(exVerdict), exVerdict.slice(0,80));
+
   await page.screenshot({ path:'test-final.png' });
 } finally {
   await browser.close();
