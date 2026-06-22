@@ -542,13 +542,15 @@ function persist(){ saveState(); }
 /* ================= block ops ================= */
 function addBlock(label='', x, y){
   const rect=canvas.getBoundingClientRect();
-  const vw=rect.width/state.zoom, vh=rect.height/state.zoom;
+  // spawn relative to the CURRENTLY VISIBLE center (accounts for pan)
+  const vcx=(rect.width/2 - state.panX)/state.zoom;
+  const vcy=(rect.height/2 - state.panY)/state.zoom;
   const id=state.nextId++;
-  const n=state.blocks.length;     // cascade so new blocks don't stack on existing ones
+  const n=state.blocks.length;     // cascade so new blocks don't stack
   state.blocks.push({
     id, label,
-    x: x ?? (vw/2 - 110 + (n % 4) * 60),
-    y: y ?? (vh/2 + 200 + Math.floor(n / 4) * 60),
+    x: x ?? (vcx - 110 + (n % 4) * 60),
+    y: y ?? (vcy + 200 + Math.floor(n / 4) * 60),
   });
   render(); syncFocus(id); persist();
 }
@@ -1467,20 +1469,17 @@ const EXAMPLES={
 function loadExample(key){
   const ex=EXAMPLES[key]||EXAMPLES.rain;
   state.blocks=[];state.wires=[];state.expanded.clear();state.nextId=1;
+  state.panX=0;state.panY=0;state.zoom=1;
   state.premises=ex.premises.map(p=>({symbol:p.symbol,description:p.description}));
-  // center the example group in the current viewport (canvas coords)
-  const rect=canvas.getBoundingClientRect();
-  const vw=rect.width/state.zoom, vh=rect.height/state.zoom;
-  const cx=vw/2, cy=vh/2;
+  // place blocks at fixed relative coords (premise stack | conclusion)
+  const px=0, conclX=320;
   const premiseCount=ex.blocks.length-1;
-  const px=cx-200, conclX=cx+80;            // premise column | conclusion column
-  const startY=cy-(premiseCount-1)*80;       // vertically center the premise stack
   let pIdx=0;
   const ids=ex.blocks.map((lbl,i)=>{
     const id=state.nextId++;
     const isConcl=i===ex.concl;
     const x=isConcl?conclX:px;
-    const y=isConcl?cy:(startY+pIdx*160);
+    const y=isConcl?(premiseCount-1)*80:(pIdx*160);
     if(!isConcl) pIdx++;
     state.blocks.push({id,label:lbl,x,y});
     return id;
@@ -1488,6 +1487,13 @@ function loadExample(key){
   ids.forEach((pid,i)=>{ if(i!==ex.concl) state.wires.push({id:'w'+state.nextId++,from:pid,to:ids[ex.concl],type:'entails'}); });
   // expand premise blocks that contain an operator (so truth table is visible)
   ids.forEach((pid,i)=>{ if(i!==ex.concl && /[→∨∧↔¬]/.test(ex.blocks[i])) state.expanded.add(pid); });
+  render();
+  // reposition blocks so the rendered bbox sits at viewport center (pan stays 0)
+  const rect=canvas.parentElement.getBoundingClientRect();
+  let minX=1/0,minY=1/0,maxX=-1/0,maxY=-1/0;
+  canvas.querySelectorAll('.block').forEach(el=>{ const r=el.getBoundingClientRect(); const w=r.width/state.zoom,h=r.height/state.zoom; const id=+el.dataset.id; const b=state.blocks.find(x=>x.id===id); if(b){minX=Math.min(minX,b.x);minY=Math.min(minY,b.y);maxX=Math.max(maxX,b.x+w);maxY=Math.max(maxY,b.y+h);} });
+  const dx=(rect.width-(maxX+minX))/2, dy=(rect.height-(maxY+minY))/2;
+  state.blocks.forEach(b=>{b.x+=dx; b.y+=dy;});
   render(); persist();
   if(window.__renderPremises) window.__renderPremises();
   if(window.__refreshSymbolList) window.__refreshSymbolList();
