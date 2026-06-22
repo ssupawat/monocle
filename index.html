@@ -90,14 +90,18 @@ body{
 /* verdict */
 .verdict{font-size:0.95rem}
 .verdict__arg{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.85rem;background:#0000000a;padding:0.6rem;border-radius:0.4rem;word-break:break-word}
-.badge{display:inline-block;padding:0.2rem 0.6rem;border-radius:99px;font-weight:700;font-size:0.8rem;margin-top:0.5rem}
+.badge{display:inline-block;padding:0.2rem 0.6rem;border-radius:99px;font-weight:700;font-size:0.8rem}
+.step__head .badge,.branch__head .badge{margin-top:0;white-space:nowrap}
 .badge--valid{background:#0f766e1f;color:var(--valid)}
 .badge--invalid{background:#b91c1c1f;color:var(--invalid)}
 .badge--idle{background:#0000000d;color:var(--muted)}
 .badge--trivial{background:#b453091f;color:#b45309}
 .step{margin:0}
 .step:not(:first-child){margin-top:0.2rem}
-.step__head{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem}
+.step__head{display:flex;align-items:center;gap:0.4rem;margin-bottom:0.3rem;flex-wrap:wrap;row-gap:0.2rem}
+.step__head > .step__num{flex-shrink:0}
+.step__tags{display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;row-gap:0.2rem;flex:1;min-width:0}
+.step__tags .pattern-tag{margin-right:0;flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .step__num{font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted)}
 .branch{margin:0 0 0.3rem 0;padding:0 0 0.2rem 0;border-left:0.15rem solid var(--line);padding-left:0.6rem}
 .branch__head{display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem;padding:0.3rem 0}
@@ -793,8 +797,9 @@ function stepShell(conclusionId,body,badgeText,badgeClass){
   const trivialBadge = isTrivial(conclusionId) ? ' <span class="badge badge--trivial" title="Conclusion is one of the premises: adds no new info.">trivial</span>' : '';
   return '<div class="step">'+
     '<div class="step__head"><span class="step__num">Step '+stepNumber(conclusionId)+'</span>'+
+    '<div class="step__tags">'+
     stepPatternTag(conclusionId)+
-    '<span class="badge badge--'+badgeClass+'">'+esc(badgeText)+'</span>'+trivialBadge+'</div>'+
+    '<span class="badge badge--'+badgeClass+'">'+esc(badgeText)+'</span>'+trivialBadge+'</div></div>'+
     body+
   '</div>';
 }
