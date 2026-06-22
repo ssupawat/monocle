@@ -1102,6 +1102,17 @@ function updateBlockEl(el,b){
     tableBtn.style.display = (trivial && !isDerived) ? 'none' : '';
   }
 }
+// classify a formula at any variable count via DPLL:
+//   tautology     <=> NOT phi is UNSAT
+//   contradiction <=> phi is UNSAT
+//   otherwise contingent
+function classifyFormula(ast){
+  const vars=[...varsOf(ast)].sort();
+  const varIndex=new Map(vars.map((v,i)=>[v,i+1]));
+  if(dpll(cnfClauses({t:'not',a:ast},varIndex), vars.length)===null) return 'tautology';
+  if(dpll(cnfClauses(ast,varIndex), vars.length)===null) return 'contradiction';
+  return 'contingent';
+}
 function renderBlockTruth(b, el){
   el=el||canvas.querySelector('.block[data-id="'+b.id+'"]'); if(!el) return;
   const wrap=el.querySelector('.block__truthwrap');
@@ -1118,17 +1129,16 @@ function renderBlockTruth(b, el){
   // plain Premise block: show its own simple truth table (vars + formula)
   const vars=[...varsOf(p.ast)].sort();
   const TABLE_MAX=12;
+  // classification via DPLL (works at any variable count; no enumeration)
+  const cls=classifyFormula(p.ast);
+  const clsBadge='<span class="badge badge--'+(cls==='tautology'?'valid':(cls==='contradiction'?'invalid':'idle'))+'" style="margin:.3rem 0">'+
+    (cls==='tautology'?'✓ tautology':(cls==='contradiction'?'✗ contradiction':'⊙ contingent'))+'</span>';
   if(vars.length>TABLE_MAX){
-    wrap.innerHTML='<div class="block__truth"><p class="note" style="margin:0">Truth table hidden ('+vars.length+' variables).</p></div>';
+    wrap.innerHTML='<div class="block__truth">'+clsBadge+'<p class="note" style="margin:0">Truth table hidden ('+vars.length+' variables).</p></div>';
     return;
   }
   const {rows}=blockTruth(p.ast);
   const valHeader = b.label.length>14? 'φ' : b.label;
-  // P1-3: classify the formula
-  const allT=rows.every(r=>r.val), allF=rows.every(r=>!r.val);
-  const cls = rows.length===0 ? '' : (allT?'tautology':(allF?'contradiction':'contingent'));
-  const clsBadge = cls ? '<span class="badge badge--'+(cls==='tautology'?'valid':(cls==='contradiction'?'invalid':'idle'))+'" style="margin:.3rem 0">'+
-    (cls==='tautology'?'✓ tautology':(cls==='contradiction'?'✗ contradiction':'⊙ contingent'))+'</span>' : '';
   let html='<div class="block__truth">'+clsBadge+
     '<table class="tt"><thead><tr>'+
     vars.map(v=>'<th>'+esc(v)+'</th>').join('')+'<th>'+esc(valHeader)+'</th></tr></thead><tbody>';
@@ -1744,9 +1754,10 @@ window.addEventListener('resize',renderWires);
 // test hook: position blocks deterministically (kept tiny + guarded)
 if (location.protocol==='file:') window.__argBuilder={ state,
   moveBlock(label,x,y){ const b=state.blocks.find(b=>b.label.trim()===label.trim()); if(b){b.x=x;b.y=y;render();} },
+  render(){ render(); },
   reset(){ localStorage.removeItem(STORE_KEY); loadExample('rain'); } };
 // test hook: expose logic internals for unit checks (file: only)
-if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, dpll, evalAst, varsOf, evaluateStep };
+if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, dpll, evalAst, varsOf, evaluateStep, classifyFormula };
 
 // ---- custom tooltips (data-tip) ----
 (function(){

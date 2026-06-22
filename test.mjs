@@ -535,6 +535,41 @@ try {
   check('large invalid returns a counterexample', big2.env!==null, JSON.stringify(big2));
   check('counterexample has p22=false (conclusion false)', big2.env && big2.env['p22']===false, JSON.stringify(big2.env));
 
+  // ---- TEST 17: >12-var formula classification via DPLL (last 2^n ceiling removed) ----
+  console.log('\n=== Test 17: large tautology classification (>12 vars) ===');
+  // 15-variable tautology: a hypothetical-syllogism chain, all conjoined, then -> p15.
+  //   (p1 ∧ (p1->p2) ∧ ... ∧ (p14->p15)) -> p15
+  // is true under every assignment (chain forces p15; a failed premise makes the antecedent false).
+  const chainLinks=[];
+  for(let i=1;i<=14;i++) chainLinks.push('p'+i+' → p'+(i+1));
+  const taut = 'p1 ∧ '+chainLinks.map(s=>'('+s+')').join(' ∧ ')+' → p15';
+  // (a) unit check: classifyFormula says tautology for 15 vars
+  const cls = await page.evaluate((src)=>{
+    const ast=window.__logic.tryParse(src).ast;
+    const vars=[...window.__logic.varsOf(ast)].sort();
+    return { cls: window.__logic.classifyFormula(ast), n: vars.length };
+  }, taut);
+  check('15-variable formula parsed', cls.n===15, `got=${cls.n}`);
+  check('classifyFormula(15-var chain) = tautology', cls.cls==='tautology', JSON.stringify(cls));
+  // also confirm a large contradiction and a large contingent classify correctly
+  const cls2 = await page.evaluate((S)=>S.map(src=>{ const ast=window.__logic.tryParse(src).ast; return {src, cls:window.__logic.classifyFormula(ast), n:[...window.__logic.varsOf(ast)].size}; }), [
+    'p1 ∧ (p1 → p2) ∧ (p2 → p3) ∧ (p3 → p4) ∧ (p4 → p5) ∧ (p5 → p6) ∧ (p6 → p7) ∧ (p7 → p8) ∧ (p8 → p9) ∧ (p9 → p10) ∧ (p10 → p11) ∧ (p11 → p12) ∧ (p12 → p13) ∧ ¬p13', // 13-var contradiction
+    'p1 → p2'                                                                                                                                                  // small fallback
+  ]);
+  check('classifyFormula(13-var unsat chain) = contradiction', cls2[0].cls==='contradiction', JSON.stringify(cls2[0]));
+  // (b) integration: a premise block with the 15-var tautology shows the tautology badge + hidden note
+  const ui = await page.evaluate((src)=>{
+    const s=window.__argBuilder.state;
+    s.blocks=[]; s.wires=[]; s.expanded.clear(); s.nextId=1;
+    const id=s.nextId++; s.blocks.push({id,label:src,x:0,y:0});
+    s.expanded.add(id);            // expand the truth-table panel
+    window.__argBuilder.render();   // render is exposed? check below
+    const el=document.querySelector('.block[data-id="'+id+'"] .block__truth');
+    return el ? el.innerText.replace(/\s+/g,' ').trim() : 'NO_TRUTH_PANEL';
+  }, taut);
+  check('large tautology block shows tautology badge', /tautology/i.test(ui), JSON.stringify(ui));
+  check('large tautology block shows table-hidden note', /hidden/i.test(ui) && /15/.test(ui), JSON.stringify(ui));
+
   await page.screenshot({ path:'test-final.png' });
 } finally {
   await browser.close();
