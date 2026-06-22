@@ -758,14 +758,19 @@ function evaluateStep(conclusionId){
   const conclusion={ast:cparse.ast,label:conc.label.trim(),id:conclusionId};
   const allVars=new Set();
   parsed.forEach(p=>varsOf(p.ast,allVars)); varsOf(cparse.ast,allVars);
-  const vars=[...allVars].sort(); const n=vars.length;
+  const vars=[...allVars].sort();
   const argStr = parsed.map(p=>pretty(p.ast)).join(' ∧ ') + ' ⊨ ' + pretty(cparse.ast);
-  const counter=[];
-  if(n<=20) for(let m=0;m<(1<<n);m++){
-    const env={}; vars.forEach((v,k)=>env[v]=!!((m>>(n-1-k))&1));
-    const allPrems=parsed.every(p=>evalAst(p.ast,env));
-    const c=evalAst(cparse.ast,env);
-    if(allPrems&&!c) counter.push({env});
+  // DPLL: the argument is valid iff (premises ∧ ¬conclusion) is UNSAT.
+  //   A satisfying model IS a counterexample: all premises true, conclusion false.
+  //   Replaces the old 2^n enumeration (which also misreported valid for n>20).
+  const varIndex=new Map(vars.map((v,i)=>[v,i+1]));
+  const andPremises=parsed.reduceRight((acc,p)=> acc?{t:'and',a:p.ast,b:acc}:p.ast, null);
+  const phi = andPremises ? {t:'and',a:andPremises,b:{t:'not',a:cparse.ast}} : {t:'not',a:cparse.ast};
+  let counter=[];
+  const model=dpll(cnfClauses(phi,varIndex), vars.length);
+  if(model!==null){
+    const env={}; vars.forEach((v,i)=>env[v]=!!model[i+1]);
+    counter=[{env}];
   }
   return {state:'eval', valid:counter.length===0, counter, vars, argStr, premises, conclusion};
 }
