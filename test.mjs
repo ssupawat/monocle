@@ -450,6 +450,34 @@ try {
   const afterDel = await page.evaluate(()=>state.premises.length);
   check('delete removes premise', afterDel===2, `len=${afterDel}`);
 
+  // ---- TEST 15: examples dropdown ----
+  console.log('\n=== Test 15: examples dropdown ===');
+  // open menu
+  await page.click('#examplesBtn'); await page.waitForTimeout(150);
+  const itemCount = await page.locator('.examples-menu__item').count();
+  check('menu lists 5 examples', itemCount===5, `count=${itemCount}`);
+  // load witch (fallacy)
+  await page.locator('.examples-menu__item[data-ex="witch"]').click(); await page.waitForTimeout(300);
+  const witchBlocks = await page.evaluate(()=>state.blocks.map(b=>b.label));
+  check('witch loads 3 blocks', witchBlocks.length===3 && witchBlocks.includes('p → q') && witchBlocks.includes('q') && witchBlocks.includes('p'), JSON.stringify(witchBlocks));
+  const witchPrem = await page.evaluate(()=>state.premises.map(p=>p.description));
+  check('witch seeds premises', witchPrem.some(d=>/witch/i.test(d)) && witchPrem.some(d=>/float/i.test(d)), JSON.stringify(witchPrem));
+  const witchVerdict = (await page.locator('#verdictBody').innerText()).replace(/\s+/g,' ').trim();
+  check('witch verdict invalid', /invalid/i.test(witchVerdict), witchVerdict.slice(0,80));
+  // load fire (modus tollens, valid)
+  await page.click('#examplesBtn'); await page.waitForTimeout(150);
+  await page.locator('.examples-menu__item[data-ex="fire"]').click(); await page.waitForTimeout(300);
+  const fireBlocks = await page.evaluate(()=>state.blocks.map(b=>b.label));
+  check('fire loads ¬q and ¬p', fireBlocks.includes('¬q') && fireBlocks.includes('¬p') && fireBlocks.includes('p → q'), JSON.stringify(fireBlocks));
+  const fireVerdict = (await page.locator('#verdictBody').innerText()).replace(/\s+/g,' ').trim();
+  check('fire verdict valid', /valid/i.test(fireVerdict) && !/invalid/i.test(fireVerdict), fireVerdict.slice(0,80));
+  // menu closes on outside click
+  await page.click('#examplesBtn'); await page.waitForTimeout(150);
+  const openBefore = await page.evaluate(()=>!document.getElementById('examplesMenu').hidden);
+  await page.mouse.click(700,400); await page.waitForTimeout(200);  // outside click on canvas
+  const openAfter = await page.evaluate(()=>document.getElementById('examplesMenu').hidden);
+  check('menu closes on outside click', openBefore===true && openAfter===true, `before=${openBefore} after=${openAfter}`);
+
   await page.screenshot({ path:'test-final.png' });
 } finally {
   await browser.close();
