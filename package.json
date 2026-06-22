@@ -1,5 +1,5 @@
 {
-  "name": "argument-builder",
+  "name": "monocle",
   "version": "1.0.0",
   "description": "Interactive tool for learning propositional logic. Drag blocks, wire them, and check argument validity via truth tables.",
   "main": "index.html",

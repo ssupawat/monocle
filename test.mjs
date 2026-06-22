@@ -442,15 +442,16 @@ try {
   await lastSym.fill('r'); await page.waitForTimeout(100);
   const symSaved = await page.evaluate(()=>state.premises[2].symbol);
   check('symbol input persists to state', symSaved==='r', `got=${symSaved}`);
-  // datalist: premise field excludes its own symbol, but block inputs see all
-  // focus a block input to rebuild the full list, then check
-  await page.locator('.block__input').first().click(); await page.waitForTimeout(100);
-  const opts = await page.evaluate(()=>[...document.querySelectorAll('#symbolList option')].map(o=>o.value));
-  check('datalist includes r (from block input)', opts.includes('r'), JSON.stringify(opts));
+  // custom autocomplete: focus a block input and clear it to see all premise symbols
+  const blockInput = page.locator('.block__input').first();
+  await blockInput.click(); await page.waitForTimeout(150);
+  await blockInput.fill(''); await page.waitForTimeout(150);
+  const acItems = await page.evaluate(()=>{ const ac=document.querySelector('.ac'); if(!ac||ac.hidden) return []; return [...ac.querySelectorAll('.ac__sym')].map(s=>s.textContent.trim()); });
+  check('autocomplete shows r (from block input)', acItems.includes('r'), JSON.stringify(acItems));
   // premise field should exclude its own symbol
-  await page.locator('.premise-row__sym').last().click(); await page.waitForTimeout(100);
-  const optsSelf = await page.evaluate(()=>[...document.querySelectorAll('#symbolList option')].map(o=>o.value));
-  check('premise field excludes its own symbol r', !optsSelf.includes('r'), JSON.stringify(optsSelf));
+  await page.locator('.premise-row__sym').last().click(); await page.waitForTimeout(150);
+  const acSelf = await page.evaluate(()=>{ const ac=document.querySelector('.ac'); if(!ac||ac.hidden) return []; return [...ac.querySelectorAll('.ac__sym')].map(s=>s.textContent.trim()); });
+  check('premise field excludes its own symbol r', !acSelf.includes('r'), JSON.stringify(acSelf));
   // delete a premise
   await page.locator('.premise-row__del').first().click(); await page.waitForTimeout(100);
   const afterDel = await page.evaluate(()=>state.premises.length);
