@@ -211,6 +211,28 @@ body{
 .validity-fab:hover{background:#0c6259;transform:scale(1.05)}
 .validity-fab[aria-expanded="true"]{background:var(--ink)}
 .validity-fab .material-icons{font-size:1.3rem;color:#fff}
+
+/* ---------- premises panel (right side) ---------- */
+.premises-card{
+  position:absolute;top:0;right:0;z-index:12;
+  width:21rem;height:100vh;overflow:auto;
+  background:transparent;padding:1rem 1.1rem;
+}
+.premises-card[hidden]{display:none}
+.premise-row{display:flex;flex-direction:column;gap:0.25rem;margin-bottom:0.5rem;padding:0.5rem;background:var(--bg-main);border:0.0625rem solid var(--line);border-radius:0.5rem}
+.premise-row__sym{font:inherit;font-size:0.9rem;font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;border:0.0625rem solid var(--line);border-radius:0.3rem;padding:0.25rem 0.4rem;background:#fff;color:var(--ink);width:100%}
+.premise-row__sym:focus,.premise-row__desc:focus{outline:0;border-color:var(--accent)}
+.premise-row__desc{font:inherit;font-size:0.8rem;border:0.0625rem solid var(--line);border-radius:0.3rem;padding:0.25rem 0.4rem;background:#fff;color:var(--ink);width:100%}
+.premise-row__head{display:flex;justify-content:space-between;align-items:center}
+.premise-row__del{background:transparent;border:0;color:var(--muted);cursor:pointer;padding:0.1rem;border-radius:0.2rem;display:grid;place-items:center}
+.premise-row__del:hover{color:var(--invalid);background:#0000000a}
+.premise-row__del .material-icons{font-size:1.1rem}
+.premises-add{margin-top:0.3rem;width:100%;font:inherit;font-size:0.82rem;font-weight:600;border:0.0625rem dashed var(--line);background:transparent;color:var(--accent);padding:0.45rem;border-radius:0.4rem;cursor:pointer}
+.premises-add:hover{background:#3b5bdb0d;border-color:var(--accent)}
+.premises-fab{position:fixed;top:1rem;right:1rem;z-index:20;width:2.4rem;height:2.4rem;border-radius:50%;background:var(--accent);color:#fff;border:0;display:grid;place-items:center;cursor:pointer;box-shadow:0 0.15rem 0.5rem #0003;transition:background .12s,transform .12s,right .2s}
+.premises-fab:hover{background:#3451c4;transform:scale(1.05)}
+.premises-fab[aria-expanded="true"]{background:var(--ink)}
+.premises-fab .material-icons{font-size:1.3rem;color:#fff}
 .help-fab:hover{background:#1c2630;transform:scale(1.05)}
 .help-fab[aria-expanded="true"]{background:var(--accent)}
 .tip{position:fixed;z-index:100;background:var(--ink);color:#fff;font-size:0.75rem;font-weight:500;padding:0.3rem 0.6rem;border-radius:0.3rem;pointer-events:none;white-space:nowrap;box-shadow:0 0.1rem 0.4rem #0003;transform:translateX(-50%)}
@@ -262,6 +284,16 @@ body{
     </section>
   </aside>
 
+  <!-- floating premises panel (right) -->
+  <aside class="premises-card" id="premPanel" hidden>
+    <section class="panel">
+      <h2>Premises</h2>
+      <p class="note" style="margin:0 0 0.6rem;font-size:0.75rem">Define symbols and their meanings. Use the symbols inside blocks.</p>
+      <div id="premiseRows"></div>
+      <button class="premises-add" id="premAdd"><span class="material-icons" style="font-size:1rem;vertical-align:-0.15rem">add</span> Add premise</button>
+    </section>
+  </aside>
+
   <!-- zoom widget (bottom-left) -->
   <div class="zoom-widget" id="zoomWidget">
     <button class="zoom-btn" id="zoomOut" data-tip="Zoom out"><span class="material-icons">remove</span></button>
@@ -272,6 +304,8 @@ body{
 
   <!-- floating fabs (bottom-right, Excalidraw-style) -->
   <button class="validity-fab" id="validityFab" aria-expanded="false" data-tip="Show validity panel"><span class="material-icons">rule</span></button>
+
+  <button class="premises-fab" id="premFab" aria-expanded="false" data-tip="Show premises panel"><span class="material-icons">menu_book</span></button>
 </main>
 
 <!-- help toggle (fixed bottom-right) -->
@@ -408,6 +442,7 @@ const state={
   selectedBlocks:new Set(),
   dragging:null,       // {id, dx, dy}
   zoom:1, panX:0, panY:0,
+  premises:[],         // [{symbol, description}]
 };
 const ZOOM_MIN=0.4, ZOOM_MAX=2.5;
 const canvas=document.getElementById('canvas');
@@ -429,6 +464,7 @@ function saveState(){
         blocks:state.blocks.map(b=>({id:b.id,label:b.label,x:b.x,y:b.y})),
         wires:state.wires.map(w=>({id:w.id,from:w.from,to:w.to,type:w.type})),
         expanded:[...state.expanded],
+        premises:state.premises.map(p=>({symbol:p.symbol,description:p.description})),
       }));
     }catch(e){/* ignore quota / disabled */}
   },200);
@@ -473,6 +509,7 @@ function loadState(){
       });
     }
     state.expanded=new Set((s.expanded||[]).filter(id=>validIds.has(id)));
+    state.premises=Array.isArray(s.premises)?s.premises.filter(p=>p&&typeof p.symbol==='string'&&typeof p.description==='string').map(p=>({symbol:p.symbol,description:p.description})):[];
     // return true if a valid store exists (even if empty) so an intentionally-cleared canvas survives refresh
     return true;
   }catch(e){return false;}
@@ -793,7 +830,7 @@ function mkBlockEl(b){
   const el=document.createElement('div'); el.className='block'; el.dataset.id=b.id;
   el.innerHTML=`
     <div class="block__head"><span class="block__role"></span><button class="icon-btn block__close" data-act="del" data-tip="Delete this block"><span class="material-icons">close</span></button></div>
-    <input class="block__input" spellcheck="false" autocomplete="off">
+    <input class="block__input" spellcheck="false" autocomplete="off" list="symbolList">
     <div class="ops" data-ops>
       <button type="button" class="ops__b" data-sym="¬">¬</button>
       <button type="button" class="ops__b" data-sym="∧">∧</button>
@@ -960,9 +997,16 @@ function renderArgumentTable(conclusionId){
   const premiseParsed=premises.map(p=>({id:p.id,ast:p.ast,label:p.label}));
   const concAst=conclusion.ast;
   const condAst={t:'imp',a:premiseParsed.reduceRight((acc,p)=> acc?{t:'and',a:p.ast,b:acc}:p.ast, null), b:concAst};;
-  // headers
-  const premiseHeaders=premiseParsed.map((p,i)=> '<th>'+esc(p.label.length>10?'P'+(i+1):p.label)+'</th>').join('');
+  // helper: look up a description for a label (matches a defined premise symbol)
+  const descFor=(label)=>{ const p=state.premises.find(p=>p.symbol===label && p.description); return p?p.description:'' };
+  // headers (with description tooltip when available)
+  const premiseHeaders=premiseParsed.map((p,i)=>{
+    const shown=p.label.length>10?'P'+(i+1):p.label;
+    const d=descFor(p.label);
+    return '<th'+(d?' data-tip="'+esc(d)+'"':'')+'>'+esc(shown)+'</th>';
+  }).join('');
   const concHeader = conclusion.label.length>10 ? 'concl' : conclusion.label;
+  const concDesc = descFor(conclusion.label);
   // rows: one per env over vars (reuse the same iteration as evaluateStep)
   const n=vars.length;
   let body='';
@@ -983,7 +1027,7 @@ function renderArgumentTable(conclusionId){
   return '<div class="block__truth">'+
     '<p class="note" style="padding:.1rem 0 .3rem;margin:0">'+esc(argStr)+' → φ</p>'+
     '<table class="tt"><thead><tr>'+premiseHeaders+
-      '<th>'+esc(concHeader)+'</th><th>φ</th></tr></thead><tbody>'+body+'</tbody></table>'+
+      '<th'+(concDesc?' data-tip="'+esc(concDesc)+'"':'')+'>'+esc(concHeader)+'</th><th>φ</th></tr></thead><tbody>'+body+'</tbody></table>'+
     verdict+
   '</div>';
 }
@@ -1305,7 +1349,9 @@ function zoomFit(){
   document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && !pop.hidden) set(false); });
 })();
 document.getElementById('clearBtn').addEventListener('click',()=>{
-  state.blocks=[];state.wires=[];state.expanded.clear();state.selectedStep=null;state.selectedBlocks.clear();render(); persist();
+  state.blocks=[];state.wires=[];state.expanded.clear();state.selectedStep=null;state.selectedBlocks.clear();state.premises=[];render(); persist();
+  if(window.__renderPremises) window.__renderPremises();
+  if(window.__refreshSymbolList) window.__refreshSymbolList();
 });
 
 // validity panel toggle (persisted)
@@ -1325,8 +1371,54 @@ document.getElementById('clearBtn').addEventListener('click',()=>{
   fab.addEventListener('click',(e)=>{ e.stopPropagation(); set(sb.hidden); });
 })();
 
+// premises panel (right) toggle + render
+(function(){
+  const fab=document.getElementById('premFab'), panel=document.getElementById('premPanel');
+  const KEY='argument-builder:premPanel';
+  const rowsEl=document.getElementById('premiseRows');
+  function renderRows(){
+    rowsEl.innerHTML='';
+    state.premises.forEach((p,idx)=>{
+      const row=document.createElement('div');
+      row.className='premise-row';
+      row.innerHTML=
+        '<div class="premise-row__head"><input class="premise-row__sym" placeholder="symbol" list="symbolList" value="'+escapeAttr(p.symbol)+'">'+
+        '<button class="premise-row__del" data-tip="Remove premise"><span class="material-icons">close</span></button></div>'+
+        '<input class="premise-row__desc" placeholder="meaning (e.g. It is raining)" value="'+escapeAttr(p.description)+'">';
+      row.querySelector('.premise-row__sym').addEventListener('input',(e)=>{ state.premises[idx].symbol=e.target.value; persist(); refreshSymbolList(); });
+      row.querySelector('.premise-row__desc').addEventListener('input',(e)=>{ state.premises[idx].description=e.target.value; persist(); });
+      row.querySelector('.premise-row__del').addEventListener('click',()=>{ state.premises.splice(idx,1); renderRows(); persist(); refreshSymbolList(); });
+      rowsEl.appendChild(row);
+    });
+  }
+  function refreshSymbolList(){
+    let dl=document.getElementById('symbolList');
+    if(!dl){ dl=document.createElement('datalist'); dl.id='symbolList'; document.body.appendChild(dl); }
+    dl.innerHTML=state.premises.map(p=>'<option value="'+escapeAttr(p.symbol)+'">').join('');
+  }
+  function escapeAttr(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  const set=(open)=>{
+    panel.hidden=!open; fab.setAttribute('aria-expanded',open?'true':'false'); fab.setAttribute('data-tip',open?'Hide premises panel':'Show premises panel');
+    fab.style.right = open ? '22rem' : '1rem';
+    try{ localStorage.setItem(KEY, open?'1':'0'); }catch(e){}
+    requestAnimationFrame(renderWires);
+  };
+  let initOpen=false;
+  try{ initOpen = localStorage.getItem(KEY)==='1'; }catch(e){}
+  set(initOpen);
+  renderRows(); refreshSymbolList();
+  fab.addEventListener('click',(e)=>{ e.stopPropagation(); set(panel.hidden); });
+  document.getElementById('premAdd').addEventListener('click',()=>{ state.premises.push({symbol:'',description:''}); renderRows(); persist(); rowsEl.querySelector('.premise-row:last-child .premise-row__sym').focus(); });
+  window.__renderPremises=renderRows;
+  window.__refreshSymbolList=refreshSymbolList;
+})();
+
 function loadExample(){
   state.blocks=[];state.wires=[];state.expanded.clear();state.nextId=1;
+  state.premises=[
+    {symbol:'p', description:'It is raining.'},
+    {symbol:'q', description:'The ground is wet.'},
+  ];
   const p1=state.nextId++; state.blocks.push({id:p1,label:'p',x:60,y:60});
   const p2=state.nextId++; state.blocks.push({id:p2,label:'p → q',x:60,y:220});
   const c =state.nextId++; state.blocks.push({id:c, label:'q',x:340,y:140});
@@ -1339,12 +1431,15 @@ function loadExample(){
 // boot: restore saved work, else load the Modus Ponens example
 if(!loadState()) loadExample();
 else render();
+if(window.__renderPremises) window.__renderPremises();
+if(window.__refreshSymbolList) window.__refreshSymbolList();
 // flush any pending debounce on tab close / refresh so the last keystrokes survive
 window.addEventListener('beforeunload',()=>{ clearTimeout(saveTimer); try{ localStorage.setItem(STORE_KEY, JSON.stringify({
   nextId:state.nextId,
   blocks:state.blocks.map(b=>({id:b.id,label:b.label,x:b.x,y:b.y})),
   wires:state.wires.map(w=>({id:w.id,from:w.from,to:w.to,type:w.type})),
   expanded:[...state.expanded],
+  premises:state.premises.map(p=>({symbol:p.symbol,description:p.description})),
 })); }catch(e){} });
 window.addEventListener('resize',renderWires);
 // test hook: position blocks deterministically (kept tiny + guarded)

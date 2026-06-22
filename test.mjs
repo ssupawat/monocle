@@ -423,6 +423,33 @@ try {
   const hintReload = await page.evaluate(()=>getComputedStyle(document.getElementById('hint')).display);
   check('hint stays hidden on reload', hintReload==='none', `display=${hintReload}`);
 
+  // ---- TEST 14: premises panel ----
+  console.log('\n=== Test 14: premises panel ===');
+  await page.evaluate(()=>window.__argBuilder.reset()); await page.waitForTimeout(300);
+  const seeded = await page.evaluate(()=>state.premises.map(p=>({s:p.symbol,d:p.description})));
+  check('example seeds 2 premises', seeded.length===2, JSON.stringify(seeded));
+  check('p has description', seeded.find(p=>p.s==='p' && p.d.includes('raining'))!=null, JSON.stringify(seeded));
+  // open panel
+  await page.click('#premFab'); await page.waitForTimeout(150);
+  const panelOpen = await page.evaluate(()=>!document.getElementById('premPanel').hidden);
+  check('premises panel opens on fab click', panelOpen===true);
+  // add a premise
+  await page.click('#premAdd'); await page.waitForTimeout(100);
+  const afterAdd = await page.evaluate(()=>state.premises.length);
+  check('add premise grows list', afterAdd===3, `len=${afterAdd}`);
+  // type into the new row
+  const lastSym = await page.locator('.premise-row__sym').last();
+  await lastSym.fill('r'); await page.waitForTimeout(100);
+  const symSaved = await page.evaluate(()=>state.premises[2].symbol);
+  check('symbol input persists to state', symSaved==='r', `got=${symSaved}`);
+  // symbol list datalist updated
+  const opts = await page.evaluate(()=>[...document.querySelectorAll('#symbolList option')].map(o=>o.value));
+  check('datalist includes r', opts.includes('r'), JSON.stringify(opts));
+  // delete a premise
+  await page.locator('.premise-row__del').first().click(); await page.waitForTimeout(100);
+  const afterDel = await page.evaluate(()=>state.premises.length);
+  check('delete removes premise', afterDel===2, `len=${afterDel}`);
+
   await page.screenshot({ path:'test-final.png' });
 } finally {
   await browser.close();
