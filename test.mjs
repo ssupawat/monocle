@@ -648,6 +648,52 @@ try {
   // Addition: {p} ⊨ p∨q
   await checkPattern('Addition', ['p'], 'p ∨ q');
 
+  // ---- TEST 20: shareable URL hash (roundtrip) ----
+  console.log('\n=== Test 20: shareable URL ===');
+  // build a known argument with positions, wires, premises, then read the hash
+  const built = await page.evaluate(()=>{
+    const s=window.__argBuilder.state;
+    localStorage.removeItem('argument-builder:v1');
+    s.blocks=[]; s.wires=[]; s.expanded.clear(); s.nextId=1;
+    s.premises=[{symbol:'p',description:'It is raining'},{symbol:'q',description:'Street is wet'}];
+    const a=s.nextId++; s.blocks.push({id:a,label:'p',x:120,y:140});
+    const b2=s.nextId++; s.blocks.push({id:b2,label:'p → q',x:340,y:140});
+    const c=s.nextId++; s.blocks.push({id:c,label:'q',x:560,y:140});
+    s.wires.push({id:'w'+(s.nextId++),from:a,to:c,type:'entails'});
+    s.wires.push({id:'w'+(s.nextId++),from:b2,to:c,type:'entails'});
+    s.selectedStep=c;
+    window.__argBuilder.render();
+    return window.encodeState();
+  });
+  check('hash generated with a= prefix', typeof built==='string' && built.startsWith('a='), `got=${typeof built}`);
+  // share button runs and shows the toast (clipboard write doesn't need read permission)
+  await page.click('#shareBtn'); await page.waitForTimeout(200);
+  check('toast shows "Link copied"', await page.evaluate(()=>{ const t=document.querySelector('.toast'); return t && t.classList.contains('toast--on') && /Link copied/i.test(t.textContent); }));
+  // open a fresh context and load the hash: state must reproduce
+  const fresh = await browser.newContext({permissions:['clipboard-read','clipboard-write']});
+  const p2 = await fresh.newPage();
+  await p2.setViewportSize({width:1280,height:800});
+  await p2.goto(FILE+'#'+built);
+  await p2.waitForTimeout(300);
+  const repro = await p2.evaluate(()=>{
+    const s=window.__argBuilder.state;
+    return {
+      blockCount: s.blocks.length,
+      labels: s.blocks.map(b=>b.label),
+      coords: s.blocks.map(b=>[b.x,b.y]),
+      wireCount: s.wires.length,
+      premises: s.premises.map(p=>p.symbol),
+      verdict: document.querySelector('#verdictBody').innerText.replace(/\s+/g,' ').trim(),
+    };
+  });
+  check('fresh load reproduces 3 blocks', repro.blockCount===3, JSON.stringify(repro.blockCount));
+  check('fresh load reproduces labels', JSON.stringify(repro.labels)===JSON.stringify(['p','p → q','q']), JSON.stringify(repro.labels));
+  check('fresh load reproduces coordinates', JSON.stringify(repro.coords)===JSON.stringify([[120,140],[340,140],[560,140]]), JSON.stringify(repro.coords));
+  check('fresh load reproduces 2 wires', repro.wireCount===2, JSON.stringify(repro.wireCount));
+  check('fresh load reproduces premises', JSON.stringify(repro.premises)===JSON.stringify(['p','q']), JSON.stringify(repro.premises));
+  check('fresh load recomputes Valid verdict', /Valid/i.test(repro.verdict) && !/Invalid/i.test(repro.verdict), repro.verdict.slice(0,50));
+  await fresh.close();
+
   await page.screenshot({ path:'test-final.png' });
 } finally {
   await browser.close();

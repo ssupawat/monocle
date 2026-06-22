@@ -261,6 +261,10 @@ body{
 .help-fab:hover{transform:scale(1.05)}
 .help-fab[aria-expanded="true"]{background:var(--ink)}
 .tip{position:fixed;z-index:100;background:var(--ink);color:#fff;font-size:0.75rem;font-weight:500;padding:0.3rem 0.6rem;border-radius:0.375rem;pointer-events:none;white-space:nowrap;box-shadow:0 0.1rem 0.4rem #0003;transform:translateX(-50%)}
+
+/* ---------- share toast ---------- */
+.toast{position:fixed;top:1rem;left:50%;transform:translate(-50%,-1rem);z-index:250;background:var(--ink);color:#fff;font-size:0.8rem;font-weight:500;padding:0.45rem 0.8rem;border-radius:0.375rem;box-shadow:0 0.15rem 0.5rem #0003;opacity:0;transition:opacity .15s,transform .15s;pointer-events:none}
+.toast--on{opacity:1;transform:translate(-50%,0)}
 .tip::after{content:'';position:absolute;left:50%;bottom:-0.25rem;transform:translateX(-50%);border:0.25rem solid transparent;border-top-color:var(--ink);border-bottom:0}
 .tip--below::after{bottom:auto;top:-0.25rem;border-top:0;border-bottom-color:var(--ink)}
 
@@ -311,6 +315,7 @@ body{
     <button class="button button--tertiary" id="premFab" aria-expanded="false"><span class="material-icons">menu_book</span>Premises</button>
     <button class="button button--tertiary" id="validityFab" aria-expanded="false"><span class="material-icons">rule</span>Validity</button>
     <button class="button button--tertiary" id="clearBtn"><span class="material-icons">delete_sweep</span>Clear</button>
+    <button class="button button--tertiary" id="shareBtn" data-tip="Copy a shareable link"><span class="material-icons">link</span>Share</button>
   </div>
 
   <!-- floating validity card (left) -->
@@ -642,6 +647,46 @@ function loadState(){
 }
 // call this after every mutation that should persist
 function persist(){ saveState(); }
+
+/* ================= shareable URL hash ================= */
+// Same shape as saveState(): nextId, blocks, wires, expanded, premises.
+// JSON -> base64url (URL-safe, no padding). Prefix 'a=' so we can version later.
+const HASH_PREFIX='a=';
+function encodeState(){
+  const payload=JSON.stringify({
+    nextId:state.nextId,
+    blocks:state.blocks.map(b=>({id:b.id,label:b.label,x:b.x,y:b.y})),
+    wires:state.wires.map(w=>({id:w.id,from:w.from,to:w.to,type:w.type})),
+    expanded:[...state.expanded],
+    premises:state.premises.map(p=>({symbol:p.symbol,description:p.description})),
+  });
+  // btoa needs binary; encodeURIComponent + unescape handles Unicode (the logic symbols ¬∧∨→↔, etc.)
+  const b64=btoa(unescape(encodeURIComponent(payload)));
+  return HASH_PREFIX + b64.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function decodeState(hash){
+  if(!hash || !hash.startsWith(HASH_PREFIX)) return null;
+  try{
+    const b64=hash.slice(HASH_PREFIX.length).replace(/-/g,'+').replace(/_/g,'/');
+    // restore padding
+    const pad=b64.length%4 ? '='.repeat(4-(b64.length%4)) : '';
+    const json=decodeURIComponent(escape(atob(b64+pad)));
+    return JSON.parse(json);
+  }catch(e){ return null; }
+}
+// load a decoded payload into state, reusing loadState's hardened parser via a temp store
+function loadFromPayload(payload){
+  if(!payload || !Array.isArray(payload.blocks)) return false;
+  const fake={ blocks:payload.blocks, wires:payload.wires||[], expanded:payload.expanded||[], nextId:payload.nextId, premises:payload.premises||[] };
+  // temporarily swap STORE_KEY content so loadState does the hardening, then restore
+  const prev=localStorage.getItem(STORE_KEY);
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(fake)); }catch(e){}
+  const ok=loadState();
+  try{
+    if(prev===null) localStorage.removeItem(STORE_KEY); else localStorage.setItem(STORE_KEY, prev);
+  }catch(e){}
+  return ok;
+}
 
 /* ================= block ops ================= */
 function addBlock(label='', x, y){
@@ -1780,9 +1825,43 @@ function loadExample(key){
   populate();
 })();
 
-// boot: restore saved work, else load the Modus Ponens example
-if(!loadState()) loadExample('rain');
-else render();
+/* ================= share link ================= */
+(function(){
+  const btn=document.getElementById('shareBtn'); if(!btn) return;
+  const toast=document.createElement('div');
+  toast.className='toast'; toast.textContent='Link copied';
+  document.body.appendChild(toast);
+  let toastT=null;
+  function flash(){
+    toast.classList.add('toast--on');
+    clearTimeout(toastT);
+    toastT=setTimeout(()=>toast.classList.remove('toast--on'),1600);
+  }
+  btn.addEventListener('click',async ()=>{
+    const hash=encodeState();
+    const url=location.origin+location.pathname+'#'+hash;
+    try{ await navigator.clipboard.writeText(url); }
+    catch(e){
+      // fallback for non-secure contexts (file://): select a temp input
+      const ta=document.createElement('input'); ta.value=url; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); }catch(e2){}
+      ta.remove();
+    }
+    flash();
+  });
+})();
+
+// boot: a URL hash wins (shareable link); otherwise restore saved work, else the example
+{
+  const hash=location.hash.slice(1);
+  const payload=decodeState(hash);
+  if(hash && payload){
+    loadFromPayload(payload);   // hash present + valid: reproduce exactly
+  } else if(!loadState()){
+    loadExample('rain');
+  }
+  render();
+}
 if(window.__renderPremises) window.__renderPremises();
 if(window.__refreshSymbolList) window.__refreshSymbolList();
 // flush any pending debounce on tab close / refresh so the last keystrokes survive
