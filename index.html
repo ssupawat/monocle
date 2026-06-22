@@ -6,25 +6,35 @@
 <title>🧐 Monocle: reason in blocks</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <style>
-/* ---------- simply-design palette (3 shades + 3 non-grey) ---------- */
+/* ---------- Geist design system (Vercel) ---------- */
 :root{
-  --bg-main:#F4F1EA;   /* background: warm paper */
-  --content:#FFFFFF;   /* content surface */
-  --ink:#26323E;       /* darkest: text & structure */
-  --accent:#3B5BDB;    /* non-grey 1: primary / AND wire (indigo) */
-  --valid:#0F766E;     /* non-grey 2: entails wire / valid (teal) */
-  --invalid:#B91C1C;   /* non-grey 3: counterexample (red) */
-  --line:#D9D2C4;      /* subtle border tint */
-  --muted:#6B6357;     /* muted text */
+  --canvas:#fafafa;      /* page background */
+  --bg-main:#fafafa;     /* alias kept for legacy refs */
+  --content:#ffffff;     /* elevated surface (cards, inputs) */
+  --ink:#171717;        /* near-black: text & structure */
+  --body:#4d4d4d;       /* paragraph / secondary text */
+  --mute:#8f8f8f;       /* muted text */
+  --faint:#a1a1a1;      /* lowest text tier */
+  --hairline:#ebebeb;   /* 1px borders */
+  --line:#ebebeb;       /* alias */
+  --muted:#8f8f8f;      /* alias */
+  --link:#0070f3;       /* accent / success (Geist maps success to blue) */
+  --accent:#0070f3;     /* alias */
+  --link-deep:#0761d1;  /* hover / press */
+  --valid:#0070f3;      /* valid = link blue */
+  --invalid:#ee0000;    /* error red */
+  --error:#ee0000;
+  --warning:#f5a623;
+  --warning-deep:#ab570a;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
 body{
-  font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-  background:var(--bg-main);
+  font-family:"Geist","Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  background:var(--canvas);
   color:var(--ink);
   font-size:1rem;
   line-height:1.5;
@@ -59,7 +69,7 @@ body{
 }
 .button:focus-visible{outline:0.1875rem solid var(--accent);outline-offset:0.125rem}
 .button--primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-.button--primary:hover{background:#3451c4}
+.button--primary:hover{background:#0761d1}
 /* Add block button with inline caret + examples dropdown */
 .add-group{position:relative}
 #addBtn{display:flex;align-items:center;gap:0.1rem}
@@ -70,11 +80,11 @@ body{
 .examples-menu{position:absolute;top:calc(100% + 0.3rem);left:0;z-index:50;min-width:16rem;background:var(--content);border:0.0625rem solid var(--line);border-radius:0.4rem;box-shadow:0 0.3rem 0.8rem #00000026;padding:0.3rem}
 .examples-menu[hidden]{display:none}
 .examples-menu__item{display:block;width:100%;text-align:left;background:transparent;border:0;font:inherit;cursor:pointer;padding:0.45rem 0.55rem;border-radius:0.3rem;color:var(--ink)}
-.examples-menu__item:hover{background:#3b5bdb0d}
+.examples-menu__item:hover{background:#0070f30d}
 .examples-menu__item b{font-weight:600;font-size:0.82rem}
 .examples-menu__item small{display:block;color:var(--muted);font-size:0.72rem;margin-top:0.1rem}
 .button--tertiary{background:transparent;color:var(--accent);border-color:transparent;text-decoration:underline;text-underline-offset:0.15em;padding:0.45rem 0.4rem}
-.button--tertiary:hover{color:#1f3aa8}
+.button--tertiary:hover{color:#0761d1}
 .button--tertiary[aria-expanded="true"]{background:var(--accent);color:#fff;text-decoration:none;border-radius:99px}
 
 /* ---------- layout (canvas is full-bleed) ---------- */
@@ -86,17 +96,17 @@ body{
   padding:1rem 1.1rem;
 }
 .panel{border:0.0625rem solid var(--line);border-radius:0.6rem;padding:0.9rem;background:var(--bg-main);pointer-events:auto}
-.panel h2{font-size:0.78rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:0 0 0.5rem;font-weight:600}
+.panel h2{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.72rem;text-transform:uppercase;letter-spacing:0;color:var(--body);margin:0 0 0.6rem;font-weight:500}
 
 /* verdict */
 .verdict{font-size:0.95rem}
-.verdict__arg{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.85rem;background:#0000000a;padding:0.6rem;border-radius:0.4rem;word-break:break-word}
+.verdict__arg{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.85rem;background:#0000000a;padding:0.6rem;border-radius:0.4rem;word-break:break-word}
 .badge{display:inline-block;padding:0.2rem 0.6rem;border-radius:99px;font-weight:700;font-size:0.8rem}
 .step__head .badge,.branch__head .badge{margin-top:0;white-space:nowrap}
-.badge--valid{background:#0f766e1f;color:var(--valid)}
-.badge--invalid{background:#b91c1c1f;color:var(--invalid)}
+.badge--valid{background:#0070f31f;color:var(--valid)}
+.badge--invalid{background:#ee00001f;color:var(--invalid)}
 .badge--idle{background:#0000000d;color:var(--muted)}
-.badge--trivial{background:#b453091f;color:#b45309}
+.badge--trivial{background:#ab570a1f;color:#ab570a}
 .step{margin:0}
 .step:not(:first-child){margin-top:0.2rem}
 .step__head{display:flex;align-items:center;gap:0.4rem;margin-bottom:0.3rem;flex-wrap:wrap;row-gap:0.2rem}
@@ -114,8 +124,8 @@ body{
 .branch__body>*{min-height:0;overflow:hidden}
 .branch.collapsed .branch__body{grid-template-rows:0fr}
 .pattern-tag{font-size:0.72rem;font-weight:600;padding:0.15rem 0.5rem;border-radius:99px;border:0.06rem solid var(--line);background:#00000005;margin-right:auto}
-.pattern-tag--valid{color:var(--valid);border-color:#0f766e55}
-.pattern-tag--invalid{color:var(--invalid);border-color:#b91c1c55}
+.pattern-tag--valid{color:var(--valid);border-color:#0070f355}
+.pattern-tag--invalid{color:var(--invalid);border-color:#ee000055}
 .material-icons{font-family:'Material Icons';font-weight:normal;font-style:normal;display:inline-block;line-height:1;text-transform:none;letter-spacing:normal;word-wrap:normal;white-space:nowrap;direction:ltr;-webkit-font-smoothing:antialiased;vertical-align:middle;font-size:1.05em}
 .button .material-icons{margin-right:0.3rem;position:relative;top:-0.02em}
 .icon-btn{display:inline-flex;align-items:center;justify-content:center;font:inherit;font-size:0.72rem;font-weight:600;padding:0.3rem 0.45rem;border-radius:0.4rem;border:0.0625rem solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
@@ -131,7 +141,7 @@ body{
 /* ---------- canvas ---------- */
 .canvas-wrap{position:relative;width:100vw;height:100vh;overflow:hidden;background:var(--bg-main);background-image:radial-gradient(var(--line) 0.09375rem, transparent 0.09375rem);background-size:1.4rem 1.4rem}
 .canvas-wrap.panning{cursor:grabbing}
-.lasso{position:absolute;z-index:6;pointer-events:none;border:0.09375rem dashed var(--accent);background:#3b5bdb1a;border-radius:0.2rem}
+.lasso{position:absolute;z-index:6;pointer-events:none;border:0.09375rem dashed var(--accent);background:#0070f31a;border-radius:0.2rem}
 .canvas{
   position:absolute;inset:0;
   overflow:visible;
@@ -191,7 +201,7 @@ body{
 .block__close .material-icons{font-size:1rem}
 .block__actions{display:flex;gap:0.3rem;flex-wrap:wrap;padding:0.45rem 0.55rem;border-top:0.0625rem solid var(--line);background:#00000004}
 .tt{border-collapse:collapse;font-family:ui-monospace,Menlo,monospace;font-size:0.75rem;width:100%}
-.tt-ce{background:#b91c1c0d}
+.tt-ce{background:#ee00000d}
 .tt th,.tt td{border:0.0625rem solid var(--line);padding:0.18rem 0.4rem;text-align:center}
 .tt th{background:#00000008;font-weight:600;color:var(--muted)}
 .tt .v-t{color:var(--valid);font-weight:700}
@@ -234,7 +244,7 @@ body{
 }
 .premises-card[hidden]{display:none}
 .premise-row{display:flex;flex-direction:column;gap:0.25rem;margin-bottom:0.5rem;padding:0.5rem;background:var(--bg-main);border:0.0625rem solid var(--line);border-radius:0.5rem}
-.premise-row__sym{font:inherit;font-size:0.9rem;font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;border:0.0625rem solid var(--line);border-radius:0.3rem;padding:0.25rem 0.4rem;background:#fff;color:var(--ink);width:100%}
+.premise-row__sym{font:inherit;font-size:0.9rem;font-weight:600;font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;border:0.0625rem solid var(--line);border-radius:0.3rem;padding:0.25rem 0.4rem;background:#fff;color:var(--ink);width:100%}
 .premise-row__sym:focus,.premise-row__desc:focus{outline:0;border-color:var(--accent)}
 .premise-row__desc{font:inherit;font-size:0.8rem;border:0.0625rem solid var(--line);border-radius:0.3rem;padding:0.25rem 0.4rem;background:#fff;color:var(--ink);width:100%}
 .premise-row__head{display:flex;justify-content:space-between;align-items:center}
@@ -242,8 +252,8 @@ body{
 .premise-row__del:hover{color:var(--invalid);background:#0000000a}
 .premise-row__del .material-icons{font-size:1.1rem}
 .premises-add{margin-top:0.3rem;width:100%;font:inherit;font-size:0.82rem;font-weight:600;border:0.0625rem dashed var(--line);background:transparent;color:var(--accent);padding:0.45rem;border-radius:0.4rem;cursor:pointer}
-.premises-add:hover{background:#3b5bdb0d;border-color:var(--accent)}
-.help-fab:hover{background:#1c2630;transform:scale(1.05)}
+.premises-add:hover{background:#0070f30d;border-color:var(--accent)}
+.help-fab:hover{background:#171717;transform:scale(1.05)}
 .help-fab[aria-expanded="true"]{background:var(--accent)}
 .tip{position:fixed;z-index:100;background:var(--ink);color:#fff;font-size:0.75rem;font-weight:500;padding:0.3rem 0.6rem;border-radius:0.3rem;pointer-events:none;white-space:nowrap;box-shadow:0 0.1rem 0.4rem #0003;transform:translateX(-50%)}
 .tip::after{content:'';position:absolute;left:50%;bottom:-0.25rem;transform:translateX(-50%);border:0.25rem solid transparent;border-top-color:var(--ink);border-bottom:0}
@@ -252,7 +262,7 @@ body{
 .hint[hidden]{display:none}
 .hint p{margin:0;font-size:0.82rem;color:var(--ink);line-height:1.4}
 .hint__close{align-self:flex-end;background:var(--accent);color:#fff;border:0;border-radius:0.3rem;padding:0.25rem 0.7rem;font:inherit;font-size:0.75rem;font-weight:600;cursor:pointer;pointer-events:auto}
-.hint__close:hover{background:#3451c4}
+.hint__close:hover{background:#0761d1}
 .help-pop{
   position:fixed;bottom:4rem;right:1.1rem;z-index:21;
   width:min(24rem,calc(100vw - 2.2rem));max-height:calc(100vh - 6rem);overflow:auto;
@@ -338,7 +348,7 @@ body{
   <p><strong>2. Lasso-select</strong> premise blocks (drag on empty canvas).</p>
   <p><strong>3. Click a block</strong> to set it as the conclusion. The selected premises now entail it.</p>
   <p><strong>Valid</strong> means: no case where all premises are true and the conclusion is false.</p>
-  <p><strong class="" style="color:#b45309">Trivial</strong> means: the conclusion is already one of the premises. Logically valid, but adds no new information.</p>
+  <p><strong class="" style="color:#ab570a">Trivial</strong> means: the conclusion is already one of the premises. Logically valid, but adds no new information.</p>
   <p><strong>Operators:</strong> <code>¬ ∧ ∨ → ↔</code>, or type <code>! &amp; | -&gt; &lt;-&gt;</code>. Variables are letters like <code>p</code>, <code>q</code>.</p>
   <p class="note">A concluded block can itself be a premise in the next step. Chain steps to build longer arguments.</p>
 </section>
