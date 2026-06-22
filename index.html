@@ -290,6 +290,18 @@ body{
 .help-pop p{margin:0.4rem 0;font-size:0.85rem}
 .help-pop code{background:#0000000d;padding:0.05rem 0.3rem;border-radius:0.375rem;font-size:0.8rem}
 .help-pop[hidden]{display:none}
+
+/* ---------- equivalence checker modal ---------- */
+.equiv-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:40;width:min(30rem,calc(100vw - 2.2rem));background:var(--content);border:0.0625rem solid var(--line);border-radius:0.75rem;box-shadow:0 0.4rem 1.2rem #00000026;padding:1.1rem;display:flex;flex-direction:column;gap:0.7rem}
+.equiv-modal[hidden]{display:none}
+.equiv-modal h2{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.78rem;text-transform:uppercase;letter-spacing:0;color:var(--muted);margin:0;font-weight:500}
+.equiv-row{display:flex;align-items:center;gap:0.5rem}
+.equiv-row__lbl{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.8rem;color:var(--body);width:1rem;flex-shrink:0}
+.equiv-input{flex:1;font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.9rem;font-weight:600;color:var(--ink);border:0.0625rem solid var(--line);border-radius:0.375rem;padding:0.4rem 0.5rem;background:#fff;outline:none}
+.equiv-input:focus{border-color:var(--accent)}
+.equiv-equiv{align-self:center;font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.9rem;color:var(--muted)}
+.equiv-result{font-size:0.82rem;color:var(--ink);line-height:1.45}
+.equiv-err{color:var(--invalid);font-size:0.78rem}
 </style>
 </head>
 <body>
@@ -316,6 +328,7 @@ body{
     <button class="button button--tertiary" id="validityFab" aria-expanded="false"><span class="material-icons">rule</span>Validity</button>
     <button class="button button--tertiary" id="clearBtn"><span class="material-icons">delete_sweep</span>Clear</button>
     <button class="button button--tertiary" id="shareBtn" data-tip="Copy a shareable link"><span class="material-icons">link</span>Share</button>
+    <button class="button button--tertiary" id="equivBtn" data-tip="Check if two formulas are logically equivalent"><span class="material-icons">balance</span>Equivalence</button>
   </div>
 
   <!-- floating validity card (left) -->
@@ -369,6 +382,16 @@ body{
   <p><strong class="" style="color:#ab570a">Trivial</strong> means: the conclusion is already one of the premises. Logically valid, but adds no new information.</p>
   <p><strong>Operators:</strong> <code>¬ ∧ ∨ → ↔</code>, or type <code>! &amp; | -&gt; &lt;-&gt;</code>. Variables are letters like <code>p</code>, <code>q</code>.</p>
   <p class="note">A concluded block can itself be a premise in the next step. Chain steps to build longer arguments.</p>
+</section>
+
+<!-- equivalence checker modal -->
+<section class="equiv-modal" id="equivModal" hidden aria-hidden="true">
+  <h2>Check logical equivalence</h2>
+  <div class="equiv-row"><span class="equiv-row__lbl">φ</span><input class="equiv-input" id="equivPhi" placeholder="p ∧ q" spellcheck="false" autocomplete="off"></div>
+  <div class="equiv-equiv">≡</div>
+  <div class="equiv-row"><span class="equiv-row__lbl">ψ</span><input class="equiv-input" id="equivPsi" placeholder="q ∧ p" spellcheck="false" autocomplete="off"></div>
+  <div class="equiv-result" id="equivResult">Enter two formulas.</div>
+  <button class="premises-add" id="equivClose"><span class="material-icons">check</span> Done</button>
 </section>
 
 <script>
@@ -1188,6 +1211,23 @@ function classifyFormula(ast){
   if(dpll(cnfClauses(ast,varIndex), vars.length)===null) return 'contradiction';
   return 'contingent';
 }
+// Are two formulas logically equivalent?  φ ≡ ψ  iff  (φ ∧ ¬ψ) ∨ (¬φ ∧ ψ)  is UNSAT.
+//   equivalent=true                          -> same truth value under every assignment
+//   equivalent=false + env + phiVal/psiVal   -> a witness assignment where they differ
+//   state='parse'                            -> one side won't parse (err + who)
+function checkEquivalence(phiStr, psiStr){
+  const p=tryParse(phiStr), q=tryParse(psiStr);
+  if(p.err) return {state:'parse', who:'φ', err:p.err};
+  if(q.err) return {state:'parse', who:'ψ', err:q.err};
+  const allVars=new Set(); varsOf(p.ast,allVars); varsOf(q.ast,allVars);
+  const vars=[...allVars].sort();
+  const varIndex=new Map(vars.map((v,i)=>[v,i+1]));
+  const diff={t:'or',a:{t:'and',a:p.ast,b:{t:'not',a:q.ast}},b:{t:'and',a:{t:'not',a:p.ast},b:q.ast}};
+  const model=dpll(cnfClauses(diff,varIndex), vars.length);
+  if(model===null) return {state:'equiv', equivalent:true, vars};
+  const env={}; vars.forEach((v,i)=>env[v]=!!model[i+1]);
+  return {state:'equiv', equivalent:false, vars, env, phiVal:evalAst(p.ast,env), psiVal:evalAst(q.ast,env)};
+}
 function renderBlockTruth(b, el){
   el=el||canvas.querySelector('.block[data-id="'+b.id+'"]'); if(!el) return;
   const wrap=el.querySelector('.block__truthwrap');
@@ -1851,6 +1891,40 @@ function loadExample(key){
   });
 })();
 
+/* ================= equivalence checker modal ================= */
+(function(){
+  const btn=document.getElementById('equivBtn'), modal=document.getElementById('equivModal');
+  const phi=document.getElementById('equivPhi'), psi=document.getElementById('equivPsi');
+  const result=document.getElementById('equivResult'), close=document.getElementById('equivClose');
+  if(!btn||!modal) return;
+  const set=(open)=>{ modal.hidden=!open; modal.setAttribute('aria-hidden',open?'false':'true'); btn.setAttribute('aria-expanded',open?'true':'false'); if(open) setTimeout(()=>phi.focus(),0); };
+  btn.addEventListener('click',(e)=>{ e.stopPropagation(); set(modal.hidden); });
+  modal.addEventListener('click',(e)=>e.stopPropagation());
+  close.addEventListener('click',(e)=>{ e.stopPropagation(); set(false); });
+  document.addEventListener('click',(e)=>{ if(!modal.hidden && !modal.contains(e.target) && e.target!==btn) set(false); });
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && !modal.hidden) set(false); });
+  function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+  function run(){
+    const a=phi.value.trim(), b=psi.value.trim();
+    if(!a && !b){ result.className='equiv-result'; result.innerHTML='Enter two formulas.'; return; }
+    const r=checkEquivalence(phi.value, psi.value);
+    if(r.state==='parse'){
+      result.className='equiv-result equiv-err';
+      result.innerHTML=esc(r.who)+': '+esc(r.err);
+      return;
+    }
+    if(r.equivalent){
+      result.className='equiv-result';
+      result.innerHTML='<span style="color:var(--valid);font-weight:600">✓ Logically equivalent</span> — true under exactly the same assignments.';
+    }else{
+      const parts=r.vars.map(v=>v+'='+(r.env[v]?'T':'F')).join(', ');
+      result.className='equiv-result';
+      result.innerHTML='<span style="color:var(--invalid);font-weight:600">✗ Not equivalent</span>. They differ when '+esc(parts)+' (φ='+(r.phiVal?'T':'F')+', ψ='+(r.psiVal?'T':'F')+').';
+    }
+  }
+  phi.addEventListener('input',run); psi.addEventListener('input',run);
+})();
+
 // boot: a URL hash wins (shareable link); otherwise restore saved work, else the example
 {
   const hash=location.hash.slice(1);
@@ -1879,7 +1953,7 @@ if (location.protocol==='file:') window.__argBuilder={ state,
   render(){ render(); },
   reset(){ localStorage.removeItem(STORE_KEY); loadExample('rain'); } };
 // test hook: expose logic internals for unit checks (file: only)
-if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, dpll, evalAst, varsOf, evaluateStep, classifyFormula, detectPattern };
+if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, dpll, evalAst, varsOf, evaluateStep, classifyFormula, detectPattern, checkEquivalence };
 
 // ---- custom tooltips (data-tip) ----
 (function(){
