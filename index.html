@@ -249,7 +249,6 @@ body{
   <!-- top-center floating action pill -->
   <div class="top-pill">
     <button class="button button--primary" id="addBtn"><span class="material-icons">add</span>Add block</button>
-    <button class="button button--tertiary" id="resetBtn"><span class="material-icons">restart_alt</span>Reset</button>
     <button class="button button--tertiary" id="clearBtn"><span class="material-icons">delete_sweep</span>Clear</button>
   </div>
 
@@ -1307,11 +1306,6 @@ function zoomFit(){
 })();
 document.getElementById('clearBtn').addEventListener('click',()=>{
   state.blocks=[];state.wires=[];state.expanded.clear();state.selectedStep=null;state.selectedBlocks.clear();render(); persist();
-});
-document.getElementById('resetBtn').addEventListener('click',()=>{
-  try{localStorage.removeItem(STORE_KEY);}catch(e){}
-  state.branchCollapsed.clear();
-  loadExample();
 });
 
 // validity panel toggle (persisted)
