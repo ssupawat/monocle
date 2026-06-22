@@ -1386,10 +1386,21 @@ if (location.protocol==='file:') window.__argBuilder={ state,
   let seen=false;
   try{ seen=localStorage.getItem(KEY)==='1'; }catch(e){}
   if(!seen){ hint.hidden=false; }
-  document.getElementById('hintClose').addEventListener('click',()=>{
+  let dismissed=false;
+  function dismiss(){
+    if(dismissed) return; dismissed=true;
     hint.hidden=true;
     try{ localStorage.setItem(KEY,'1'); }catch(e){}
-  });
+  }
+  // close button
+  const closeBtn=document.getElementById('hintClose');
+  if(closeBtn) closeBtn.addEventListener('click',dismiss);
+  // click anywhere on hint (defensive: in case button click is intercepted)
+  hint.addEventListener('click',dismiss);
+  // Esc dismisses
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && !hint.hidden) dismiss(); });
+  // auto-dismiss on first canvas interaction
+  document.getElementById('canvasWrap').addEventListener('mousedown',()=>{ if(!hint.hidden) dismiss(); }, {once:true});
 })();
 </script>
 </body>
