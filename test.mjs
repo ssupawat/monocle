@@ -621,6 +621,33 @@ try {
   check('Escape clears aria-activedescendant', closed.ad===null, closed.ad);
   check('Escape hides listbox', closed.listboxHidden===true, JSON.stringify(closed.listboxHidden));
 
+  // ---- TEST 19: additional inference patterns (CD, DD, Simplification, Addition) ----
+  console.log('\n=== Test 19: additional inference patterns ===');
+  async function checkPattern(name, premises, conclusion){
+    const tag = await page.evaluate((spec)=>{
+      const s=window.__argBuilder.state;
+      s.blocks=[]; s.wires=[]; s.expanded.clear(); s.selectedStep=null; s.nextId=1;
+      const premIds=[];
+      for(const lbl of spec.prems){ const bid=s.nextId++; s.blocks.push({id:bid,label:lbl,x:0,y:0}); premIds.push(bid); }
+      const cid=s.nextId++; s.blocks.push({id:cid,label:spec.concl,x:0,y:0});
+      for(const from of premIds){ s.wires.push({id:'w'+(s.nextId++),from:from,to:cid,type:'entails'}); }
+      s.selectedStep=cid;
+      window.__argBuilder.render();
+      const el=document.querySelector('.pattern-tag');
+      return el?el.textContent.trim():'';
+    }, {prems:premises, concl:conclusion});
+    check(name+' pattern tagged', new RegExp(name,'i').test(tag), `tag="${tag}"`);
+    return tag;
+  }
+  // Constructive Dilemma: {(p→q),(r→s),(p∨r)} ⊨ q∨s
+  await checkPattern('Constructive Dilemma', ['p → q','r → s','p ∨ r'], 'q ∨ s');
+  // Destructive Dilemma: {(p→q),(r→s),(¬q∨¬s)} ⊨ ¬p∨¬r
+  await checkPattern('Destructive Dilemma', ['p → q','r → s','¬q ∨ ¬s'], '¬p ∨ ¬r');
+  // Simplification: {p∧q} ⊨ p
+  await checkPattern('Simplification', ['p ∧ q'], 'p');
+  // Addition: {p} ⊨ p∨q
+  await checkPattern('Addition', ['p'], 'p ∨ q');
+
   await page.screenshot({ path:'test-final.png' });
 } finally {
   await browser.close();

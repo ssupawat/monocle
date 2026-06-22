@@ -874,9 +874,39 @@ function astEq(a,b){
   if(a.t==='not') return astEq(a.a,b.a);
   return astEq(a.a,b.a)&&astEq(a.b,b.b);
 }
+// does node match {x ∨ y} in either order?
+function orMatches(node,x,y){
+  return node && node.t==='or' && ((astEq(node.a,x)&&astEq(node.b,y))||(astEq(node.a,y)&&astEq(node.b,x)));
+}
 // premises: AST[], concl: AST. Returns {name, valid} or null.
 function detectPattern(premises, concl){
   const ps=premises;
+
+  // ---- 3-premise patterns: the two Dilemmas ----
+  if(ps.length===3){
+    const imps=ps.filter(p=>p.t==='imp');
+    const disj=ps.find(p=>p.t==='or');
+    if(imps.length===2 && disj){
+      const [i1,i2]=imps;
+      // Constructive Dilemma: {(A→B),(C→D),(A∨C)} ⊨ (B∨D)
+      if(orMatches(disj,i1.a,i2.a) && orMatches(concl,i1.b,i2.b)) return {name:'Constructive Dilemma',valid:true};
+      // Destructive Dilemma: {(A→B),(C→D),(¬B∨¬D)} ⊨ (¬A∨¬C)
+      if(orMatches(disj,{t:'not',a:i1.b},{t:'not',a:i2.b}) && orMatches(concl,{t:'not',a:i1.a},{t:'not',a:i2.a})) return {name:'Destructive Dilemma',valid:true};
+    }
+    return null;
+  }
+
+  // ---- 1-premise patterns: Simplification + Addition ----
+  if(ps.length===1){
+    const p=ps[0];
+    // Simplification: {A∧B} ⊨ A  (or B)
+    if(p.t==='and' && (astEq(concl,p.a)||astEq(concl,p.b))) return {name:'Simplification',valid:true};
+    // Addition: {A} ⊨ (A∨B)  (or B∨A)
+    if(concl.t==='or' && (astEq(concl.a,p)||astEq(concl.b,p))) return {name:'Addition',valid:true};
+    return null;
+  }
+
+  // ---- 2-premise patterns (original MP/MT/HS/DS + AC/DA) ----
   if(ps.length!==2) return null;
   const imps=ps.filter(p=>p.t==='imp');
   const imp=imps[0];
@@ -1770,7 +1800,7 @@ if (location.protocol==='file:') window.__argBuilder={ state,
   render(){ render(); },
   reset(){ localStorage.removeItem(STORE_KEY); loadExample('rain'); } };
 // test hook: expose logic internals for unit checks (file: only)
-if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, dpll, evalAst, varsOf, evaluateStep, classifyFormula };
+if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, dpll, evalAst, varsOf, evaluateStep, classifyFormula, detectPattern };
 
 // ---- custom tooltips (data-tip) ----
 (function(){
