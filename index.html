@@ -61,6 +61,7 @@ body{
 .button--primary:hover{background:#3451c4}
 .button--tertiary{background:transparent;color:var(--accent);border-color:transparent;text-decoration:underline;text-underline-offset:0.15em;padding:0.45rem 0.4rem}
 .button--tertiary:hover{color:#1f3aa8}
+.button--tertiary[aria-expanded="true"]{background:var(--accent);color:#fff;text-decoration:none;border-radius:99px}
 
 /* ---------- layout (canvas is full-bleed) ---------- */
 /* (no header bar; .canvas-wrap fills the viewport) */
@@ -206,12 +207,6 @@ body{
 .zoom-pct{font:inherit;font-size:0.78rem;font-weight:600;color:var(--ink);background:transparent;border:0;cursor:pointer;min-width:3.1rem;padding:0 0.2rem;text-align:center}
 .zoom-pct:hover{color:var(--accent)}
 
-/* ---------- validity toggle fab (top-left) ---------- */
-.validity-fab{position:fixed;top:1rem;left:1rem;z-index:20;width:2.4rem;height:2.4rem;border-radius:50%;background:var(--valid);color:#fff;border:0;display:grid;place-items:center;cursor:pointer;box-shadow:0 0.15rem 0.5rem #0003;transition:background .12s,transform .12s,left .2s}
-.validity-fab:hover{background:#0c6259;transform:scale(1.05)}
-.validity-fab[aria-expanded="true"]{background:var(--ink)}
-.validity-fab .material-icons{font-size:1.3rem;color:#fff}
-
 /* ---------- premises panel (right side) ---------- */
 .premises-card{
   position:absolute;top:0;right:0;z-index:12;
@@ -229,10 +224,6 @@ body{
 .premise-row__del .material-icons{font-size:1.1rem}
 .premises-add{margin-top:0.3rem;width:100%;font:inherit;font-size:0.82rem;font-weight:600;border:0.0625rem dashed var(--line);background:transparent;color:var(--accent);padding:0.45rem;border-radius:0.4rem;cursor:pointer}
 .premises-add:hover{background:#3b5bdb0d;border-color:var(--accent)}
-.premises-fab{position:fixed;top:1rem;right:1rem;z-index:20;width:2.4rem;height:2.4rem;border-radius:50%;background:var(--accent);color:#fff;border:0;display:grid;place-items:center;cursor:pointer;box-shadow:0 0.15rem 0.5rem #0003;transition:background .12s,transform .12s,right .2s}
-.premises-fab:hover{background:#3451c4;transform:scale(1.05)}
-.premises-fab[aria-expanded="true"]{background:var(--ink)}
-.premises-fab .material-icons{font-size:1.3rem;color:#fff}
 .help-fab:hover{background:#1c2630;transform:scale(1.05)}
 .help-fab[aria-expanded="true"]{background:var(--accent)}
 .tip{position:fixed;z-index:100;background:var(--ink);color:#fff;font-size:0.75rem;font-weight:500;padding:0.3rem 0.6rem;border-radius:0.3rem;pointer-events:none;white-space:nowrap;box-shadow:0 0.1rem 0.4rem #0003;transform:translateX(-50%)}
@@ -272,6 +263,8 @@ body{
   <!-- top-center floating action pill -->
   <div class="top-pill">
     <button class="button button--primary" id="addBtn"><span class="material-icons">add</span>Add block</button>
+    <button class="button button--tertiary" id="premFab" aria-expanded="false"><span class="material-icons">menu_book</span>Premises</button>
+    <button class="button button--tertiary" id="validityFab" aria-expanded="false"><span class="material-icons">rule</span>Validity</button>
     <button class="button button--tertiary" id="clearBtn"><span class="material-icons">delete_sweep</span>Clear</button>
   </div>
 
@@ -303,10 +296,6 @@ body{
     <button class="zoom-btn" id="zoomFit" data-tip="Fit to screen"><span class="material-icons">fit_screen</span></button>
   </div>
 
-  <!-- floating fabs (bottom-right, Excalidraw-style) -->
-  <button class="validity-fab" id="validityFab" aria-expanded="false" data-tip="Show validity panel"><span class="material-icons">rule</span></button>
-
-  <button class="premises-fab" id="premFab" aria-expanded="false" data-tip="Show premises panel"><span class="material-icons">menu_book</span></button>
 </main>
 
 <!-- help toggle (fixed bottom-right) -->
@@ -1360,8 +1349,7 @@ document.getElementById('clearBtn').addEventListener('click',()=>{
   const fab=document.getElementById('validityFab'), sb=document.getElementById('sidebar');
   const KEY='argument-builder:panel';
   const set=(open)=>{
-    sb.hidden=!open; fab.setAttribute('aria-expanded',open?'true':'false'); fab.setAttribute('data-tip',open?'Hide validity panel':'Show validity panel');
-    fab.style.left = open ? '22rem' : '1rem';
+    sb.hidden=!open; fab.setAttribute('aria-expanded',open?'true':'false');
     try{ localStorage.setItem(KEY, open?'1':'0'); }catch(e){}
     // canvas size changed → recompute wires
     requestAnimationFrame(renderWires);
@@ -1399,8 +1387,7 @@ document.getElementById('clearBtn').addEventListener('click',()=>{
   }
   function escapeAttr(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   const set=(open)=>{
-    panel.hidden=!open; fab.setAttribute('aria-expanded',open?'true':'false'); fab.setAttribute('data-tip',open?'Hide premises panel':'Show premises panel');
-    fab.style.right = open ? '22rem' : '1rem';
+    panel.hidden=!open; fab.setAttribute('aria-expanded',open?'true':'false');
     try{ localStorage.setItem(KEY, open?'1':'0'); }catch(e){}
     requestAnimationFrame(renderWires);
   };
