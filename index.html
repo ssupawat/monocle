@@ -1421,10 +1421,11 @@ document.getElementById('clearBtn').addEventListener('click',()=>{
       rowsEl.appendChild(row);
     });
   }
+  function opt(p){ return '<option value="'+escapeAttr(p.symbol)+'"'+(p.description?' label="'+escapeAttr(p.description)+'"':'')+'>'; }
   function refreshSymbolList(){
     let dl=document.getElementById('symbolList');
     if(!dl){ dl=document.createElement('datalist'); dl.id='symbolList'; document.body.appendChild(dl); }
-    dl.innerHTML=state.premises.map(p=>'<option value="'+escapeAttr(p.symbol)+'">').join('');
+    dl.innerHTML=state.premises.map(opt).join('');
   }
   // rebuild the shared datalist excluding the focused premise input's own symbol
   // (so editing 'p' doesn't suggest 'p' to itself); block inputs get the full list
@@ -1432,7 +1433,7 @@ document.getElementById('clearBtn').addEventListener('click',()=>{
     let dl=document.getElementById('symbolList');
     if(!dl){ dl=document.createElement('datalist'); dl.id='symbolList'; document.body.appendChild(dl); }
     const self=input.value.trim();
-    dl.innerHTML=state.premises.filter(p=>p.symbol.trim()!==self).map(p=>'<option value="'+escapeAttr(p.symbol)+'">').join('');
+    dl.innerHTML=state.premises.filter(p=>p.symbol.trim()!==self).map(opt).join('');
   }
   document.addEventListener('focusin',(e)=>{
     const t=e.target;
