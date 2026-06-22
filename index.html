@@ -996,6 +996,9 @@ function detectPattern(premises, concl){
     if(o && o.t==='not' && astEq(o.a,or.a) && astEq(concl,or.b)) return {name:'Disjunctive Syllogism',valid:true};
     if(o && o.t==='not' && astEq(o.a,or.b) && astEq(concl,or.a)) return {name:'Disjunctive Syllogism',valid:true};
   }
+  // Conjunction: {A, B} ⊨ A∧B  (either premise order)
+  if(concl.t==='and' && astEq(concl.a,ps[0]) && astEq(concl.b,ps[1])) return {name:'Conjunction',valid:true};
+  if(concl.t==='and' && astEq(concl.a,ps[1]) && astEq(concl.b,ps[0])) return {name:'Conjunction',valid:true};
   // Affirming the Consequent (fallacy): {A→B, B} ⊨ A
   if(imp && astEq(other,imp.b) && astEq(concl,imp.a)) return {name:'Affirming the Consequent',valid:false};
   // Denying the Antecedent (fallacy): {A→B, ¬A} ⊨ ¬B
@@ -1009,6 +1012,36 @@ function stepPatternTag(conclusionId){
   if(!pat) return '';
   const cls = pat.valid ? 'valid' : 'invalid';
   return '<span class="pattern-tag pattern-tag--'+cls+'">'+pat.name+(pat.valid?'':' (fallacy)')+'</span>';
+}
+/* ================= natural-deduction proof engine =================
+   A proof line cites a named rule + reference lines; proofApply checks
+   whether that rule legitimately derives the candidate from the refs.
+   Reuses detectPattern as the structural matcher. */
+const PROOF_RULES=[
+  {name:'Modus Ponens',          arity:2},
+  {name:'Modus Tollens',         arity:2},
+  {name:'Hypothetical Syllogism',arity:2},
+  {name:'Disjunctive Syllogism', arity:2},
+  {name:'Conjunction',           arity:2},
+  {name:'Constructive Dilemma',  arity:3},
+  {name:'Destructive Dilemma',   arity:3},
+  {name:'Simplification',        arity:1},
+  {name:'Addition',              arity:1},
+];
+// refs: AST[] (referenced lines), candidate: AST, claimedRule: string
+// returns {ok:true} or {ok:false, reason}
+function proofApply(refs, candidate, claimedRule){
+  if(!Array.isArray(refs) || refs.length===0) return {ok:false, reason:'No reference lines selected.'};
+  if(!candidate) return {ok:false, reason:'Empty formula.'};
+  const rule=PROOF_RULES.find(r=>r.name===claimedRule);
+  if(!rule) return {ok:false, reason:'Unknown rule: '+claimedRule};
+  if(refs.length!==rule.arity) return {ok:false, reason:claimedRule+' needs '+rule.arity+' reference line'+(rule.arity>1?'s':'')+', got '+refs.length+'.'};
+  const pat=detectPattern(refs, candidate);
+  if(pat && pat.valid && pat.name===claimedRule) return {ok:true};
+  const reason = pat
+    ? (pat.valid ? 'Those lines derive that conclusion by '+pat.name+', not '+claimedRule+'.' : pat.name+' is a fallacy, not a valid rule.')
+    : claimedRule+' does not derive that conclusion from those lines.';
+  return {ok:false, reason};
 }
 function isTrivial(conclusionId){
   const r=evaluateStep(conclusionId);
@@ -1953,7 +1986,7 @@ if (location.protocol==='file:') window.__argBuilder={ state,
   render(){ render(); },
   reset(){ localStorage.removeItem(STORE_KEY); loadExample('rain'); } };
 // test hook: expose logic internals for unit checks (file: only)
-if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, dpll, evalAst, varsOf, evaluateStep, classifyFormula, detectPattern, checkEquivalence };
+if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, dpll, evalAst, varsOf, evaluateStep, classifyFormula, detectPattern, checkEquivalence, proofApply, PROOF_RULES };
 
 // ---- custom tooltips (data-tip) ----
 (function(){
