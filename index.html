@@ -455,6 +455,52 @@ function varsOf(n,acc){
 function tryParse(label){
   try{return {ast:parse(label)};}catch(e){return {err:e.message};}
 }
+/* ---- CNF conversion (for DPLL SAT) ----
+   Convert an AST (using ∧∨¬→↔) into a set of clauses over integer
+   literals. Direct (non-Tseitin) conversion: fine for this app, where
+   formulas are flat and the hard cases are many-VARIABLE, not deeply
+   nested. Variable names map to 1-based ints via varIndex. */
+// push ¬ to leaves and desugar → / ↔, leaving only {var, not(var), and, or}
+function nnf(ast){
+  switch(ast.t){
+    case 'var': return ast;
+    case 'imp': return nnf({t:'or',a:{t:'not',a:ast.a},b:ast.b});          // A→B ≡ ¬A∨B
+    case 'iff': return nnf({t:'and',                                                   // A↔B ≡ (¬A∨B)∧(A∨¬B)
+      a:{t:'or',a:{t:'not',a:ast.a},b:ast.b},
+      b:{t:'or',a:ast.a,b:{t:'not',a:ast.b}}});
+    case 'and': return {t:'and',a:nnf(ast.a),b:nnf(ast.b)};
+    case 'or':  return {t:'or',a:nnf(ast.a),b:nnf(ast.b)};
+    case 'not':{
+      const a=ast.a;
+      if(a.t==='var') return ast;                                  // ¬p stays
+      if(a.t==='not') return nnf(a.a);                             // ¬¬A ≡ A
+      if(a.t==='and') return nnf({t:'or',a:{t:'not',a:a.a},b:{t:'not',a:a.b}});   // De Morgan
+      if(a.t==='or')  return nnf({t:'and',a:{t:'not',a:a.a},b:{t:'not',a:a.b}});  // De Morgan
+      if(a.t==='imp') return nnf({t:'and',a:a.a,b:{t:'not',a:a.b}});              // ¬(A→B) ≡ A∧¬B
+      if(a.t==='iff') return nnf({t:'or',                                          // ¬(A↔B) ≡ (A∧¬B)∨(¬A∧B)
+        a:{t:'and',a:a.a,b:{t:'not',a:a.b}},
+        b:{t:'and',a:{t:'not',a:a.a},b:a.b}});
+      return ast;
+    }
+  }
+}
+// distribute ∧ over ∨ -> list of clauses; each clause = list of literal asts ({var} or {not,var})
+function toClauses(n){
+  if(n.t==='and') return [...toClauses(n.a), ...toClauses(n.b)];
+  if(n.t==='or'){
+    const ca=toClauses(n.a), cb=toClauses(n.b), out=[];
+    for(const xa of ca) for(const xb of cb) out.push([...xa, ...xb]);
+    return out;
+  }
+  return [[n]];   // single literal
+}
+function litToInt(lit, varIndex){
+  return lit.t==='var' ? varIndex.get(lit.v) : -varIndex.get(lit.a.v);
+}
+// AST -> int[][] clauses. varIndex: Map<name, 1-based int>
+function cnfClauses(ast, varIndex){
+  return toClauses(nnf(ast)).map(cl=>cl.map(lit=>litToInt(lit, varIndex)));
+}
 // truth table for a single block over its own vars
 function blockTruth(ast){
   const vars=[...varsOf(ast)].sort();
@@ -1634,6 +1680,8 @@ window.addEventListener('resize',renderWires);
 if (location.protocol==='file:') window.__argBuilder={ state,
   moveBlock(label,x,y){ const b=state.blocks.find(b=>b.label.trim()===label.trim()); if(b){b.x=x;b.y=y;render();} },
   reset(){ localStorage.removeItem(STORE_KEY); loadExample('rain'); } };
+// test hook: expose logic internals for unit checks (file: only)
+if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, evalAst, varsOf };
 
 // ---- custom tooltips (data-tip) ----
 (function(){
