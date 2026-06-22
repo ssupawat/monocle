@@ -1116,7 +1116,13 @@ function renderBlockTruth(b, el){
     return;
   }
   // plain Premise block: show its own simple truth table (vars + formula)
-  const {vars,rows}=blockTruth(p.ast);
+  const vars=[...varsOf(p.ast)].sort();
+  const TABLE_MAX=12;
+  if(vars.length>TABLE_MAX){
+    wrap.innerHTML='<div class="block__truth"><p class="note" style="margin:0">Truth table hidden ('+vars.length+' variables).</p></div>';
+    return;
+  }
+  const {rows}=blockTruth(p.ast);
   const valHeader = b.label.length>14? 'φ' : b.label;
   // P1-3: classify the formula
   const allT=rows.every(r=>r.val), allF=rows.every(r=>!r.val);
@@ -1136,7 +1142,7 @@ function renderArgumentTable(conclusionId){
   const r=evaluateStep(conclusionId);
   if(r.state==='broken') return '<p class="note" style="padding:.2rem 0 0">broken step.</p>';
   if(r.state==='parse') return '<p class="note" style="padding:.2rem 0 0">parse error: '+esc(r.err)+'</p>';
-  const {vars,counter,valid,argStr,premises,conclusion}=r;
+  const {vars,valid,argStr,premises,conclusion}=r;
   const premiseParsed=premises.map(p=>({id:p.id,ast:p.ast,label:p.label}));
   const concAst=conclusion.ast;
   const condAst={t:'imp',a:premiseParsed.reduceRight((acc,p)=> acc?{t:'and',a:p.ast,b:acc}:p.ast, null), b:concAst};;
@@ -1152,13 +1158,22 @@ function renderArgumentTable(conclusionId){
   const concDesc = descFor(conclusion.label);
   // rows: one per env over vars (reuse the same iteration as evaluateStep)
   const n=vars.length;
+  const TABLE_MAX=12;   // cap rows rendered in the DOM; verdict always comes from DPLL
+  if(n>TABLE_MAX){
+    const verdict=valid
+      ? '<span class="badge badge--valid" style="margin:.3rem 0">✓ valid</span>'
+      : '<span class="badge badge--invalid" style="margin:.3rem 0">✗ invalid</span>';
+    return '<div class="block__truth">'+
+      '<p class="note" style="padding:.1rem 0 .3rem;margin:0">'+esc(argStr)+'</p>'+
+      verdict+
+      '<p class="note" style="margin:.3rem 0 0">Argument table hidden ('+n+' variables). The verdict comes from the SAT solver.</p>'+
+      '</div>';
+  }
   let body='';
-  const counterEnvs=new Set(counter.map(row=>vars.map(v=>row.env[v]?'1':'0').join('')));
   for(let m=0;m<(1<<n);m++){
     const env={}; vars.forEach((v,k)=>env[v]=!!((m>>(n-1-k))&1));
-    const key=vars.map(v=>env[v]?'1':'0').join('');
-    const isCE=counterEnvs.has(key);
     const cond=evalAst(condAst,env);
+    const isCE=!cond;   // a row is a counterexample iff premises→conclusion is false
     const tds=premiseParsed.map(p=>'<td>'+(evalAst(p.ast,env)?'T':'F')+'</td>').join('')
       +'<td>'+(evalAst(concAst,env)?'T':'F')+'</td>'
       +'<td class="'+(cond?'v-t':'v-f')+'">'+(cond?'T':'F')+(isCE?' ⚠':'')+'</td>';
