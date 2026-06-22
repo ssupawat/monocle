@@ -570,6 +570,57 @@ try {
   check('large tautology block shows tautology badge', /tautology/i.test(ui), JSON.stringify(ui));
   check('large tautology block shows table-hidden note', /hidden/i.test(ui) && /15/.test(ui), JSON.stringify(ui));
 
+  // ---- TEST 18: autocomplete ARIA accessibility ----
+  console.log('\n=== Test 18: autocomplete ARIA roles + activedescendant ===');
+  // ensure at least two premises exist for suggestions
+  await page.evaluate(()=>{ const s=window.__argBuilder.state; s.premises=[{symbol:'p',description:'It is raining'},{symbol:'q',description:'The street is wet'}]; });
+  // focus a block input to open the listbox (clear value first so filter shows all premises)
+  await page.evaluate(()=>{ const i=document.querySelector('.block__input'); i.value=''; i.focus(); }); await page.waitForTimeout(150);
+  const aria = await page.evaluate(()=>{
+    const inp=document.querySelector('.block__input');
+    const lb=document.getElementById('ac-listbox');
+    const opts=lb?[...lb.querySelectorAll('[role="option"]')]:[];
+    return {
+      inputRole: inp.getAttribute('role'),
+      inputExpanded: inp.getAttribute('aria-expanded'),
+      inputControls: inp.getAttribute('aria-controls'),
+      inputAutoComplete: inp.getAttribute('aria-autocomplete'),
+      listboxExists: !!lb,
+      listboxRole: lb?lb.getAttribute('role'):null,
+      optionCount: opts.length,
+      optionRoles: opts.map(o=>o.getAttribute('role')),
+      optionIds: opts.map(o=>o.id),
+      activedescendant: inp.getAttribute('aria-activedescendant'),
+    };
+  });
+  check('input has role=combobox', aria.inputRole==='combobox', aria.inputRole);
+  check('input has aria-expanded=true (open)', aria.inputExpanded==='true', aria.inputExpanded);
+  check('input aria-controls points to listbox', aria.inputControls==='ac-listbox', aria.inputControls);
+  check('input has aria-autocomplete=list', aria.inputAutoComplete==='list', aria.inputAutoComplete);
+  check('listbox exists with role=listbox', aria.listboxExists && aria.listboxRole==='listbox', JSON.stringify(aria.listboxRole));
+  check('options have role=option', aria.optionCount>=2 && aria.optionRoles.every(r=>r==='option'), JSON.stringify(aria.optionRoles));
+  check('options have unique ids', new Set(aria.optionIds).size===aria.optionIds.length && aria.optionIds.every(id=>id.startsWith('ac-opt-')), JSON.stringify(aria.optionIds));
+  check('activedescendant points to ac-opt-0 on open', aria.activedescendant==='ac-opt-0', aria.activedescendant);
+  // ArrowDown should move the highlight AND update aria-activedescendant
+  await page.keyboard.press('ArrowDown'); await page.waitForTimeout(100);
+  const ad1 = await page.evaluate(()=>document.querySelector('.block__input').getAttribute('aria-activedescendant'));
+  const onIdx = await page.evaluate(()=>{ const o=document.querySelector('.ac__item--on'); return o?o.id:null; });
+  check('ArrowDown moves activedescendant to ac-opt-1', ad1==='ac-opt-1', ad1);
+  check('activedescendant matches highlighted option', ad1===onIdx, `ad=${ad1} highlighted=${onIdx}`);
+  await page.keyboard.press('ArrowDown'); await page.waitForTimeout(100);
+  const ad2 = await page.evaluate(()=>document.querySelector('.block__input').getAttribute('aria-activedescendant'));
+  check('second ArrowDown wraps to ac-opt-0 (2 items)', ad2==='ac-opt-0', ad2);
+  // Escape closes and clears activedescendant + resets expanded
+  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  const closed = await page.evaluate(()=>{
+    const inp=document.querySelector('.block__input');
+    const lb=document.getElementById('ac-listbox');
+    return { expanded:inp.getAttribute('aria-expanded'), ad:inp.getAttribute('aria-activedescendant'), listboxHidden:lb.hidden };
+  });
+  check('Escape sets aria-expanded=false', closed.expanded==='false', closed.expanded);
+  check('Escape clears aria-activedescendant', closed.ad===null, closed.ad);
+  check('Escape hides listbox', closed.listboxHidden===true, JSON.stringify(closed.listboxHidden));
+
   await page.screenshot({ path:'test-final.png' });
 } finally {
   await browser.close();

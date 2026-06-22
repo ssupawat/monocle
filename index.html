@@ -972,7 +972,7 @@ function mkBlockEl(b){
   const el=document.createElement('div'); el.className='block'; el.dataset.id=b.id;
   el.innerHTML=`
     <div class="block__head"><span class="block__role"></span><button class="icon-btn block__close" data-act="del" data-tip="Delete this block"><span class="material-icons">close</span></button></div>
-    <input class="block__input" spellcheck="false" autocomplete="off">
+    <input class="block__input" spellcheck="false" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="ac-listbox" aria-autocomplete="list">
     <div class="ops" data-ops>
       <button type="button" class="ops__b" data-sym="¬">¬</button>
       <button type="button" class="ops__b" data-sym="∧">∧</button>
@@ -1577,7 +1577,7 @@ document.getElementById('clearBtn').addEventListener('click',()=>{
       const row=document.createElement('div');
       row.className='premise-row';
       row.innerHTML=
-        '<div class="premise-row__head"><input class="premise-row__sym" placeholder="symbol" autocomplete="off" spellcheck="false" value="'+escapeAttr(p.symbol)+'">'+
+        '<div class="premise-row__head"><input class="premise-row__sym" placeholder="symbol" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="ac-listbox" aria-autocomplete="list" value="'+escapeAttr(p.symbol)+'">'+
         '<button class="premise-row__del" data-tip="Remove premise"><span class="material-icons">close</span></button></div>'+
         '<input class="premise-row__desc" placeholder="meaning (e.g. It is raining)" value="'+escapeAttr(p.description)+'">';
       row.querySelector('.premise-row__sym').addEventListener('input',(e)=>{ state.premises[idx].symbol=e.target.value; persist(); });
@@ -1606,6 +1606,8 @@ document.getElementById('clearBtn').addEventListener('click',()=>{
 (function(){
   const ac=document.createElement('div');
   ac.className='ac';
+  ac.id='ac-listbox';
+  ac.setAttribute('role','listbox');
   ac.hidden=true;
   document.body.appendChild(ac);
   let target=null, items=[], hi=-1;
@@ -1622,9 +1624,11 @@ document.getElementById('clearBtn').addEventListener('click',()=>{
     items=filter(listFor(input), input.value);
     if(!items.length){ close(); return; }
     hi=0;
-    ac.innerHTML=items.map((p,i)=>'<div class="ac__item'+(i===0?' ac__item--on':'')+'" data-i="'+i+'"><span class="ac__sym">'+esc(p.symbol)+'</span>'+(p.description?'<span class="ac__desc">'+esc(p.description)+'</span>':'')+'</div>').join('');
+    ac.innerHTML=items.map((p,i)=>'<div id="ac-opt-'+i+'" role="option" class="ac__item'+(i===0?' ac__item--on':'')+'" data-i="'+i+'"><span class="ac__sym">'+esc(p.symbol)+'</span>'+(p.description?'<span class="ac__desc">'+esc(p.description)+'</span>':'')+'</div>').join('');
     place();
     ac.hidden=false;
+    target.setAttribute('aria-expanded','true');
+    target.setAttribute('aria-activedescendant','ac-opt-0');
   }
   function place(){
     if(!target) return;
@@ -1633,14 +1637,23 @@ document.getElementById('clearBtn').addEventListener('click',()=>{
     ac.style.top=(r.bottom+4)+'px';
     ac.style.minWidth=r.width+'px';
   }
-  function close(){ ac.hidden=true; target=null; items=[]; hi=-1; ac.innerHTML=''; }
+  function close(){
+    const t=target;
+    ac.hidden=true; target=null; items=[]; hi=-1; ac.innerHTML='';
+    if(t){ t.setAttribute('aria-expanded','false'); t.removeAttribute('aria-activedescendant'); }
+  }
   function select(i){
     if(!target||!items[i]) return;
     target.value=items[i].symbol;
     target.dispatchEvent(new Event('input',{bubbles:true}));
     close();
   }
-  function setHi(n){ if(!items.length) return; hi=(n+items.length)%items.length; [...ac.children].forEach((el,idx)=>el.classList.toggle('ac__item--on',idx===hi)); }
+  function setHi(n){
+    if(!items.length) return;
+    hi=(n+items.length)%items.length;
+    [...ac.children].forEach((el,idx)=>el.classList.toggle('ac__item--on',idx===hi));
+    if(target) target.setAttribute('aria-activedescendant','ac-opt-'+hi);
+  }
   document.addEventListener('focusin',(e)=>{ if(isACInput(e.target)) open(e.target); else close(); });
   document.addEventListener('input',(e)=>{ if(e.target===target) open(e.target); });
   document.addEventListener('keydown',(e)=>{
