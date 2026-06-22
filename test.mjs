@@ -442,9 +442,15 @@ try {
   await lastSym.fill('r'); await page.waitForTimeout(100);
   const symSaved = await page.evaluate(()=>state.premises[2].symbol);
   check('symbol input persists to state', symSaved==='r', `got=${symSaved}`);
-  // symbol list datalist updated
+  // datalist: premise field excludes its own symbol, but block inputs see all
+  // focus a block input to rebuild the full list, then check
+  await page.locator('.block__input').first().click(); await page.waitForTimeout(100);
   const opts = await page.evaluate(()=>[...document.querySelectorAll('#symbolList option')].map(o=>o.value));
-  check('datalist includes r', opts.includes('r'), JSON.stringify(opts));
+  check('datalist includes r (from block input)', opts.includes('r'), JSON.stringify(opts));
+  // premise field should exclude its own symbol
+  await page.locator('.premise-row__sym').last().click(); await page.waitForTimeout(100);
+  const optsSelf = await page.evaluate(()=>[...document.querySelectorAll('#symbolList option')].map(o=>o.value));
+  check('premise field excludes its own symbol r', !optsSelf.includes('r'), JSON.stringify(optsSelf));
   // delete a premise
   await page.locator('.premise-row__del').first().click(); await page.waitForTimeout(100);
   const afterDel = await page.evaluate(()=>state.premises.length);

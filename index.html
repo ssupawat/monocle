@@ -1411,10 +1411,10 @@ document.getElementById('clearBtn').addEventListener('click',()=>{
       const row=document.createElement('div');
       row.className='premise-row';
       row.innerHTML=
-        '<div class="premise-row__head"><input class="premise-row__sym" placeholder="symbol" list="symbolList" value="'+escapeAttr(p.symbol)+'">'+
+        '<div class="premise-row__head"><input class="premise-row__sym" placeholder="symbol" autocomplete="off" spellcheck="false" list="symbolList" value="'+escapeAttr(p.symbol)+'">'+
         '<button class="premise-row__del" data-tip="Remove premise"><span class="material-icons">close</span></button></div>'+
         '<input class="premise-row__desc" placeholder="meaning (e.g. It is raining)" value="'+escapeAttr(p.description)+'">';
-      row.querySelector('.premise-row__sym').addEventListener('input',(e)=>{ state.premises[idx].symbol=e.target.value; persist(); refreshSymbolList(); });
+      row.querySelector('.premise-row__sym').addEventListener('input',(e)=>{ state.premises[idx].symbol=e.target.value; persist(); refreshSymbolListFor(e.target); });
       row.querySelector('.premise-row__desc').addEventListener('input',(e)=>{ state.premises[idx].description=e.target.value; persist(); });
       row.querySelector('.premise-row__del').addEventListener('click',()=>{ state.premises.splice(idx,1); renderRows(); persist(); refreshSymbolList(); });
       rowsEl.appendChild(row);
@@ -1425,6 +1425,20 @@ document.getElementById('clearBtn').addEventListener('click',()=>{
     if(!dl){ dl=document.createElement('datalist'); dl.id='symbolList'; document.body.appendChild(dl); }
     dl.innerHTML=state.premises.map(p=>'<option value="'+escapeAttr(p.symbol)+'">').join('');
   }
+  // rebuild the shared datalist excluding the focused premise input's own symbol
+  // (so editing 'p' doesn't suggest 'p' to itself); block inputs get the full list
+  function refreshSymbolListFor(input){
+    let dl=document.getElementById('symbolList');
+    if(!dl){ dl=document.createElement('datalist'); dl.id='symbolList'; document.body.appendChild(dl); }
+    const self=input.value.trim();
+    dl.innerHTML=state.premises.filter(p=>p.symbol.trim()!==self).map(p=>'<option value="'+escapeAttr(p.symbol)+'">').join('');
+  }
+  document.addEventListener('focusin',(e)=>{
+    const t=e.target;
+    if(!(t instanceof HTMLElement)) return;
+    if(t.classList.contains('premise-row__sym')) refreshSymbolListFor(t);
+    else if(t.classList.contains('block__input')) refreshSymbolList();
+  });
   function escapeAttr(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   const set=(open)=>{
     panel.hidden=!open; fab.setAttribute('aria-expanded',open?'true':'false');
