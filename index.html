@@ -501,6 +501,51 @@ function litToInt(lit, varIndex){
 function cnfClauses(ast, varIndex){
   return toClauses(nnf(ast)).map(cl=>cl.map(lit=>litToInt(lit, varIndex)));
 }
+/* ---- DPLL SAT solver ----
+   Returns a satisfying model {varInt: bool} for all vars 1..nVars, or
+   null if UNSAT. Classic DPLL: iterative unit propagation, then branch
+   on the first unassigned variable. Immutable per-branch model so
+   backtracking is automatic. Simple over fast: the app's clause sets
+   are small; unit propagation alone cracks the long chains we throw at
+   it. */
+function dpll(clauses, nVars){
+  // drop satisfied clauses and false literals under model; null = empty clause (conflict)
+  function simplify(cs, model){
+    const out=[];
+    for(const cl of cs){
+      let sat=false; const kept=[];
+      for(const lit of cl){
+        const v=Math.abs(lit), pos=lit>0;
+        if(model[v]!==undefined){ if(model[v]===pos){sat=true;break;} else continue; }
+        kept.push(lit);
+      }
+      if(sat) continue;
+      if(kept.length===0) return null;
+      out.push(kept);
+    }
+    return out;
+  }
+  function recur(cs, model){
+    let cur=cs;
+    // unit propagation loop: a unit clause forces its literal
+    while(true){
+      cur=simplify(cur, model);
+      if(cur===null) return null;
+      let unit=0;
+      for(const cl of cur){ if(cl.length===1){ unit=cl[0]; break; } }
+      if(!unit) break;
+      model={...model, [Math.abs(unit)]: unit>0};
+    }
+    if(cur.length===0){                                  // every clause satisfied
+      const full={...model};
+      for(let i=1;i<=nVars;i++) if(full[i]===undefined) full[i]=false;
+      return full;
+    }
+    const v=Math.abs(cur[0][0]);                          // branch on first unassigned var
+    return recur(cur, {...model,[v]:true}) || recur(cur, {...model,[v]:false});
+  }
+  return recur(clauses.map(cl=>[...cl]), {});
+}
 // truth table for a single block over its own vars
 function blockTruth(ast){
   const vars=[...varsOf(ast)].sort();
@@ -1681,7 +1726,7 @@ if (location.protocol==='file:') window.__argBuilder={ state,
   moveBlock(label,x,y){ const b=state.blocks.find(b=>b.label.trim()===label.trim()); if(b){b.x=x;b.y=y;render();} },
   reset(){ localStorage.removeItem(STORE_KEY); loadExample('rain'); } };
 // test hook: expose logic internals for unit checks (file: only)
-if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, evalAst, varsOf };
+if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, dpll, evalAst, varsOf };
 
 // ---- custom tooltips (data-tip) ----
 (function(){
