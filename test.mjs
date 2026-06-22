@@ -694,6 +694,52 @@ try {
   check('fresh load recomputes Valid verdict', /Valid/i.test(repro.verdict) && !/Invalid/i.test(repro.verdict), repro.verdict.slice(0,50));
   await fresh.close();
 
+  // ---- TEST 21: render() re-entrancy guard (blur fires during render) ----
+  console.log('\n=== Test 21: render() re-entrancy guard ===');
+  // capture any page/console errors during this test
+  const guardErrors = [];
+  const eh1 = e => guardErrors.push('pageerror: '+e.message);
+  const eh2 = m => { if(m.type()==='error') guardErrors.push('console: '+m.text()); };
+  page.on('pageerror', eh1);
+  page.on('console', eh2);
+  // simulate the original failure: a blur event firing DURING an in-progress render
+  // (as happened when reset() removed a focused input). Focus a block input, then make
+  // _render dispatch a blur at its start; the blur handler calls render() while rendering=true.
+  const guardResult = await page.evaluate(()=>{
+    const inp=document.querySelector('.block__input');
+    inp.focus();
+    let underRenderCalls=0;
+    const origRender=window.render, origUnder=window._render;
+    window._render=function(){ underRenderCalls++; inp.dispatchEvent(new FocusEvent('blur')); return origUnder.call(this); };
+    origRender.call(window);   // outer render -> _render -> blur -> blur-handler render() (guard must drop it)
+    window._render=origUnder;
+    const ids=[...document.querySelectorAll('.block')].map(b=>b.dataset.id);
+    return {
+      underRenderCalls,                  // 1 => nested call was dropped; 2+ => guard failed
+      blockCount: document.querySelectorAll('.block').length,
+      stateBlockCount: window.__argBuilder.state.blocks.length,
+      duplicateIds: ids.length - new Set(ids).size,
+    };
+  });
+  check('guard drops nested render (_render ran once)', guardResult.underRenderCalls===1, `_render calls=${guardResult.underRenderCalls}`);
+  check('no error thrown during re-entrant render', guardErrors.length===0, JSON.stringify(guardErrors));
+  check('no duplicate block ids after re-entrant render', guardResult.duplicateIds===0, `dupIds=${guardResult.duplicateIds}`);
+  check('block count matches state after re-entrant render', guardResult.blockCount===guardResult.stateBlockCount, `${guardResult.blockCount} vs state ${guardResult.stateBlockCount}`);
+  page.off('pageerror', eh1); page.off('console', eh2);
+
+  // the blur->render feature itself still works when NOT re-entrant (guard didn't break it):
+  // focus an input, type an invalid formula, blur via focus transfer -> parse error shows
+  await page.evaluate(()=>{
+    const inp=document.querySelector('.block__input');
+    inp.focus();
+    inp.value='p →';
+    inp.dispatchEvent(new Event('input',{bubbles:true}));
+    document.getElementById('zoomIn').focus();   // real focus transfer fires blur on the input
+  });
+  await page.waitForTimeout(200);
+  const errText = await page.evaluate(()=>document.querySelector('.block__err')?.textContent.trim() || '');
+  check('normal blur still shows parse error (feature intact)', /Unexpected end/i.test(errText), `err="${errText}"`);
+
   await page.screenshot({ path:'test-final.png' });
 } finally {
   await browser.close();
