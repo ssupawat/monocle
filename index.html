@@ -1088,7 +1088,7 @@ function rectEdge(halo,target){
 }
 function renderWires(){
   // remove old paths + halos (keep marker defs); nubs live in the canvas, not the svg
-  [...wiresSvg.querySelectorAll(':scope > path, :scope > rect.halo')].forEach(n=>n.remove());
+  [...wiresSvg.querySelectorAll(':scope > path, :scope > rect.halo, defs > linearGradient')].forEach(n=>n.remove());
   [...canvas.querySelectorAll('.wire-del')].forEach(n=>n.remove());
   // use pre-transform box (offsetWidth/Height) so wires/halos are zoom-independent
   const center=(id)=>{const el=canvas.querySelector('.block[data-id="'+id+'"]'); const b=B(id); if(!el||!b) return null;
@@ -1124,15 +1124,41 @@ function renderWires(){
     halos.set(cid,halo);
   });
 
-  // one arrow per step (from halo or single premise center to conclusion center)
+  // one arrow per step (from halo or single premise to conclusion border + 6px gap)
+  const defs=wiresSvg.querySelector('defs');
   stepConclusions().forEach(cid=>{
-    const b=center(cid); if(!b) return;
+    const cEl=canvas.querySelector('.block[data-id="'+cid+'"]'); const cb=B(cid);
+    if(!cEl||!cb) return;
+    const conclRect={cx:cb.x+cEl.offsetWidth/2, cy:cb.y+cEl.offsetHeight/2, w:cEl.offsetWidth, h:cEl.offsetHeight};
     const pids=premisesOf(cid);
-    const a = pids.length>=2 && halos.has(cid) ? rectEdge(halos.get(cid),b) : (pids[0] ? center(pids[0]) : null);
+    const a = pids.length>=2 && halos.has(cid)
+      ? rectEdge(halos.get(cid),{x:conclRect.cx,y:conclRect.cy})
+      : (pids[0] ? center(pids[0]) : null);
     if(!a) return;
+    // (a) terminate at the conclusion border along the ray from conclusion-center toward source, then back off 6px
+    let b=rectEdge(conclRect,a);
+    const ddx=b.x-a.x, ddy=b.y-a.y, dlen=Math.hypot(ddx,ddy)||1;
+    b={x:b.x-ddx/dlen*6, y:b.y-ddy/dlen*6};
+    // (b) gentle quadratic bezier bowed perpendicular to the line (orientation-agnostic)
+    const bow=Math.min(dlen*0.12,28);
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+    const ctrlx=mx-ddy/dlen*bow, ctrly=my+ddx/dlen*bow;
+    const d='M'+a.x+','+a.y+' Q'+ctrlx+','+ctrly+' '+b.x+','+b.y;
+    // (c) gradient: premise end faint (--muted) -> conclusion end saturated (--valid)
+    const gid='wireGrad'+cid;
+    const grad=document.createElementNS('http://www.w3.org/2000/svg','linearGradient');
+    grad.setAttribute('id',gid);
+    grad.setAttribute('gradientUnits','userSpaceOnUse');
+    grad.setAttribute('x1',a.x); grad.setAttribute('y1',a.y);
+    grad.setAttribute('x2',b.x); grad.setAttribute('y2',b.y);
+    const s0=document.createElementNS('http://www.w3.org/2000/svg','stop');
+    s0.setAttribute('offset','0'); s0.setAttribute('style','stop-color:var(--muted)');
+    const s1=document.createElementNS('http://www.w3.org/2000/svg','stop');
+    s1.setAttribute('offset','1'); s1.setAttribute('style','stop-color:var(--valid)');
+    grad.appendChild(s0); grad.appendChild(s1);
+    defs.appendChild(grad);
     const isSelected = state.selectedStep===cid;
-    const d='M'+a.x+','+a.y+' L'+b.x+','+b.y;
-    // hit area (clickable)
+    // hit area (clickable) — reuses same d
     const hit=document.createElementNS('http://www.w3.org/2000/svg','path');
     hit.setAttribute('d',d); hit.setAttribute('class','hit');
     hit.setAttribute('stroke','transparent'); hit.setAttribute('stroke-width','16'); hit.setAttribute('fill','none');
@@ -1141,14 +1167,14 @@ function renderWires(){
     // visible
     const vis=document.createElementNS('http://www.w3.org/2000/svg','path');
     vis.setAttribute('d',d);
-    vis.setAttribute('stroke','var(--valid)');
+    vis.setAttribute('stroke','url(#'+gid+')');
     vis.setAttribute('stroke-width', isSelected?'0.32rem':'0.17rem');
     vis.setAttribute('fill','none');
     vis.setAttribute('marker-end','url(#arrowEntails)');
     wiresSvg.appendChild(vis);
-    // delete nub if selected
+    // delete nub if selected, placed on the curve at t=0.5
     if(isSelected){
-      const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+      const mid={x:0.25*a.x+0.5*ctrlx+0.25*b.x, y:0.25*a.y+0.5*ctrly+0.25*b.y};
       const btn=document.createElement('button');
       btn.className='wire-del'; btn.textContent='×';
       btn.style.left=mid.x+'px'; btn.style.top=mid.y+'px';

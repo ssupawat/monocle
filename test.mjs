@@ -97,20 +97,23 @@ try {
   }
 
   // ---- TEST 3: ⊨ arrow leaves the halo edge, not P2's center ------------
-  console.log('\n=== Test 3: ⊨ arrow origin on halo edge ===');
+  console.log('\n=== Test 3: ⊨ arrow origin on halo edge, end on conclusion border ===');
   const arrow = await page.evaluate(() => {
     const paths = [...document.querySelectorAll('svg > path')];
     // entails path has the arrow marker
     const entails = paths.find(p => p.getAttribute('marker-end'));
     if(!entails) return null;
-    const d = entails.getAttribute('d');           // "Mx,y Lx2,y2"
-    const m = d.match(/M([\d.]+),([\d.]+)\s+L([\d.]+),([\d.]+)/);
+    const d = entails.getAttribute('d');           // "Mx,y Qcx,cy x2,y2"
+    const stroke = entails.getAttribute('stroke');
+    const m = d.match(/M([\d.-]+),([\d.-]+)\s+Q([\d.-]+),([\d.-]+)\s+([\d.-]+),([\d.-]+)/);
     if(!m) return null;
-    const [_, x1,y1,x2,y2] = m.map(Number);
-    return {x1,y1,x2,y2};
+    const [_, x1,y1,cx,cy,x2,y2] = m.map(Number);
+    return {x1,y1,cx,cy,x2,y2,d,stroke};
   });
   check('⊨ arrow path found', arrow!==null);
   if (arrow) {
+    check('arrow path is a quadratic bezier', /Q/.test(arrow.d), arrow.d);
+    check('arrow stroke uses a wire gradient', /url\(#wireGrad/.test(arrow.stroke), arrow.stroke);
     // read halo in the SAME coordinate space as the path `d` (SVG user units = canvas-local)
     const halo = await page.evaluate(() => {
       const h = document.querySelector('svg rect.halo');
@@ -134,6 +137,15 @@ try {
     const p2cx = p2b.x + p2b.width/2 - canvasBox.x, p2cy = p2b.y + p2b.height/2 - canvasBox.y;
     const distFromP2 = Math.hypot(arrow.x1-p2cx, arrow.y1-p2cy);
     check('arrow origin NOT at P2 center', distFromP2 > 20, `dist=${distFromP2.toFixed(0)}px`);
+    // (a) arrow END terminates at the conclusion ("q") border + gap, NOT its center
+    const qc = await blockRect('q'); const qcb = await qc.boundingBox();
+    const qcx = qcb.x + qcb.width/2 - canvasBox.x, qcy = qcb.y + qcb.height/2 - canvasBox.y;
+    const distFromQ = Math.hypot(arrow.x2-qcx, arrow.y2-qcy);
+    check('arrow end NOT at conclusion center', distFromQ > 20, `dist=${distFromQ.toFixed(0)}px`);
+    // end sits just outside the conclusion box: within 6px gap + tolerance of the nearest edge
+    const qLeft=qcb.x-canvasBox.x, qTop=qcb.y-canvasBox.y, qRight=qLeft+qcb.width, qBottom=qTop+qcb.height;
+    const nearestEdge=Math.min(Math.abs(arrow.x2-qLeft),Math.abs(arrow.x2-qRight),Math.abs(arrow.y2-qTop),Math.abs(arrow.y2-qBottom));
+    check('arrow end kisses conclusion border (<=14px)', nearestEdge<=14, `nearestEdge=${nearestEdge.toFixed(0)}px`);
   }
 
   // ---- TEST 4: rewire to ¬q → Invalid (counterexample) ----------------
