@@ -497,6 +497,44 @@ try {
   const openAfter = await page.evaluate(()=>document.getElementById('examplesMenu').hidden);
   check('menu closes on outside click', openBefore===true && openAfter===true, `before=${openBefore} after=${openAfter}`);
 
+  // ---- TEST 16: large argument via DPLL (>20 vars; old 2^n engine misreported these) ----
+  console.log('\n=== Test 16: large argument (>20 variables) ===');
+  const big = await page.evaluate((spec)=>{
+    const s=window.__argBuilder.state;
+    s.blocks=[]; s.wires=[]; s.nextId=1;
+    const premIds=spec.premises.map(lbl=>{ const id=s.nextId++; s.blocks.push({id,label:lbl,x:0,y:0}); return id; });
+    const cid=s.nextId++; s.blocks.push({id:cid,label:spec.conclusion,x:0,y:0});
+    premIds.forEach(from=> s.wires.push({id:'w'+(s.nextId++),from,to:cid,type:'entails'}));
+    const r=window.__logic.evaluateStep(cid);
+    return { state:r.state, valid:r.valid, varCount:r.vars.length, hasCounter:r.counter.length>0,
+             env:r.counter[0]?r.counter[0].env:null, argStr:r.argStr };
+  }, { premises:['p1','p1 → p2','p2 → p3','p3 → p4','p4 → p5','p5 → p6','p6 → p7','p7 → p8','p8 → p9','p9 → p10',
+                'p10 → p11','p11 → p12','p12 → p13','p13 → p14','p14 → p15','p15 → p16','p16 → p17','p17 → p18','p18 → p19','p19 → p20',
+                'p20 → p21'],
+        conclusion:'p21' });
+  check('large chain evaluated (not parse/broken)', big.state==='eval', JSON.stringify(big));
+  check('large chain has 21 variables', big.varCount===21, `got=${big.varCount}`);
+  check('large chain VALID (HS chain; old engine would freeze or skip)', big.valid===true, JSON.stringify(big));
+
+  // INVALID large argument: same chain but conclude an unrelated fresh variable p22.
+  // The old 2^n engine skipped the loop for n>20 -> counter=[] -> wrongly reported valid.
+  const big2 = await page.evaluate((spec)=>{
+    const s=window.__argBuilder.state;
+    s.blocks=[]; s.wires=[]; s.nextId=1;
+    const premIds=spec.premises.map(lbl=>{ const id=s.nextId++; s.blocks.push({id,label:lbl,x:0,y:0}); return id; });
+    const cid=s.nextId++; s.blocks.push({id:cid,label:spec.conclusion,x:0,y:0});
+    premIds.forEach(from=> s.wires.push({id:'w'+(s.nextId++),from,to:cid,type:'entails'}));
+    const r=window.__logic.evaluateStep(cid);
+    return { state:r.state, valid:r.valid, varCount:r.vars.length, env:r.counter[0]?r.counter[0].env:null };
+  }, { premises:['p1','p1 → p2','p2 → p3','p3 → p4','p4 → p5','p5 → p6','p6 → p7','p7 → p8','p8 → p9','p9 → p10',
+                'p10 → p11','p11 → p12','p12 → p13','p13 → p14','p14 → p15','p15 → p16','p16 → p17','p17 → p18','p18 → p19','p19 → p20',
+                'p20 → p21'],
+        conclusion:'p22' });
+  check('large invalid has 22 variables', big2.varCount===22, `got=${big2.varCount}`);
+  check('large INVALID (old engine wrongly said valid for n>20)', big2.valid===false, JSON.stringify(big2));
+  check('large invalid returns a counterexample', big2.env!==null, JSON.stringify(big2));
+  check('counterexample has p22=false (conclusion false)', big2.env && big2.env['p22']===false, JSON.stringify(big2.env));
+
   await page.screenshot({ path:'test-final.png' });
 } finally {
   await browser.close();

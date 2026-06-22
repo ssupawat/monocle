@@ -1746,7 +1746,7 @@ if (location.protocol==='file:') window.__argBuilder={ state,
   moveBlock(label,x,y){ const b=state.blocks.find(b=>b.label.trim()===label.trim()); if(b){b.x=x;b.y=y;render();} },
   reset(){ localStorage.removeItem(STORE_KEY); loadExample('rain'); } };
 // test hook: expose logic internals for unit checks (file: only)
-if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, dpll, evalAst, varsOf };
+if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, dpll, evalAst, varsOf, evaluateStep };
 
 // ---- custom tooltips (data-tip) ----
 (function(){
