@@ -544,10 +544,11 @@ function addBlock(label='', x, y){
   const rect=canvas.getBoundingClientRect();
   const vw=rect.width/state.zoom, vh=rect.height/state.zoom;
   const id=state.nextId++;
+  const n=state.blocks.length;     // cascade so new blocks don't stack on existing ones
   state.blocks.push({
     id, label,
-    x: x ?? (vw/2 - 110 + (Math.random()*40-20)),
-    y: y ?? (vh/2 - 50 + (Math.random()*40-20)),
+    x: x ?? (vw/2 - 110 + (n % 4) * 60),
+    y: y ?? (vh/2 + 200 + Math.floor(n / 4) * 60),
   });
   render(); syncFocus(id); persist();
 }
@@ -1467,10 +1468,20 @@ function loadExample(key){
   const ex=EXAMPLES[key]||EXAMPLES.rain;
   state.blocks=[];state.wires=[];state.expanded.clear();state.nextId=1;
   state.premises=ex.premises.map(p=>({symbol:p.symbol,description:p.description}));
+  // center the example group in the current viewport (canvas coords)
+  const rect=canvas.getBoundingClientRect();
+  const vw=rect.width/state.zoom, vh=rect.height/state.zoom;
+  const cx=vw/2, cy=vh/2;
+  const premiseCount=ex.blocks.length-1;
+  const px=cx-200, conclX=cx+80;            // premise column | conclusion column
+  const startY=cy-(premiseCount-1)*80;       // vertically center the premise stack
+  let pIdx=0;
   const ids=ex.blocks.map((lbl,i)=>{
     const id=state.nextId++;
-    const x = i===ex.concl ? 340 : 60;
-    const y = i===ex.concl ? 140 : (60 + (i<ex.concl?i:i-1)*160);
+    const isConcl=i===ex.concl;
+    const x=isConcl?conclX:px;
+    const y=isConcl?cy:(startY+pIdx*160);
+    if(!isConcl) pIdx++;
     state.blocks.push({id,label:lbl,x,y});
     return id;
   });
