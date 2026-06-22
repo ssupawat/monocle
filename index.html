@@ -59,11 +59,13 @@ body{
 .button:focus-visible{outline:0.1875rem solid var(--accent);outline-offset:0.125rem}
 .button--primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .button--primary:hover{background:#3451c4}
-/* split Add block + examples dropdown */
-.add-group{display:flex;position:relative}
-.add-group__toggle{padding:0.45rem 0.35rem;min-width:1.8rem;display:grid;place-items:center}
-.add-group__toggle[aria-expanded="true"] span{transform:rotate(180deg)}
-.add-group__toggle span{transition:transform .15s}
+/* Add block button with inline caret + examples dropdown */
+.add-group{position:relative}
+#addBtn{display:flex;align-items:center;gap:0.1rem}
+.add-group__caret{display:inline-flex;align-items:center;padding:0.1rem 0 0.1rem 0.35rem;margin-left:0.2rem;border-left:0.0625rem solid #ffffff55;cursor:pointer}
+.add-group__caret .material-icons{font-size:1.15rem}
+.add-group__caret[aria-expanded="true"] .material-icons{transform:rotate(180deg)}
+.add-group__caret .material-icons{transition:transform .15s}
 .examples-menu{position:absolute;top:calc(100% + 0.3rem);left:0;z-index:50;min-width:16rem;background:var(--content);border:0.0625rem solid var(--line);border-radius:0.4rem;box-shadow:0 0.3rem 0.8rem #00000026;padding:0.3rem}
 .examples-menu[hidden]{display:none}
 .examples-menu__item{display:block;width:100%;text-align:left;background:transparent;border:0;font:inherit;cursor:pointer;padding:0.45rem 0.55rem;border-radius:0.3rem;color:var(--ink)}
@@ -274,8 +276,7 @@ body{
   <!-- top-center floating action pill -->
   <div class="top-pill">
     <div class="add-group">
-      <button class="button button--primary" id="addBtn"><span class="material-icons">add</span>Add block</button>
-      <button class="button button--primary add-group__toggle" id="examplesBtn" aria-expanded="false" aria-label="Load example"><span class="material-icons">expand_more</span></button>
+      <button class="button button--primary" id="addBtn"><span class="material-icons">add</span>Add block<span class="add-group__caret" id="examplesBtn" aria-expanded="false" aria-label="Load example"><span class="material-icons">expand_more</span></span></button>
       <div class="examples-menu" id="examplesMenu" hidden></div>
     </div>
     <button class="button button--tertiary" id="premFab" aria-expanded="false"><span class="material-icons">menu_book</span>Premises</button>
@@ -1285,7 +1286,7 @@ window.addEventListener('keydown',(ev)=>{
   }
 });
 
-document.getElementById('addBtn').addEventListener('click',()=>addBlock('p'));
+document.getElementById('addBtn').addEventListener('click',(e)=>{ if(e.target.closest('#examplesBtn')) return; addBlock('p'); });
 
 // zoom widget (bottom-left): apply a single transform to the canvas so blocks, wires, and grid scale together
 function applyZoom(){
