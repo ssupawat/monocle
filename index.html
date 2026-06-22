@@ -42,10 +42,11 @@ body{
 }
 .top-pill .button{border-radius:99px}
 
-/* ---------- floating validity card (left, full-height card) ---------- */
+/* ---------- floating validity card (right, full-height card) ---------- */
 .validity-card{
-  position:absolute;top:0;left:0;z-index:12;
+  position:absolute;top:0;right:0;z-index:12;
   width:21rem;height:100vh;overflow:auto;
+  pointer-events:none;
 }
 .validity-card[hidden]{display:none}
 
@@ -84,7 +85,7 @@ body{
   background:transparent;
   padding:1rem 1.1rem;
 }
-.panel{border:0.0625rem solid var(--line);border-radius:0.6rem;padding:0.9rem;background:var(--bg-main)}
+.panel{border:0.0625rem solid var(--line);border-radius:0.6rem;padding:0.9rem;background:var(--bg-main);pointer-events:auto}
 .panel h2{font-size:0.78rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:0 0 0.5rem;font-weight:600}
 
 /* verdict */
@@ -224,11 +225,12 @@ body{
 .zoom-pct{font:inherit;font-size:0.78rem;font-weight:600;color:var(--ink);background:transparent;border:0;cursor:pointer;min-width:3.1rem;padding:0 0.2rem;text-align:center}
 .zoom-pct:hover{color:var(--accent)}
 
-/* ---------- premises panel (right side) ---------- */
+/* ---------- premises panel (left side) ---------- */
 .premises-card{
-  position:absolute;top:0;right:0;z-index:12;
+  position:absolute;top:0;left:0;z-index:12;
   width:21rem;height:100vh;overflow:auto;
   background:transparent;padding:1rem 1.1rem;
+  pointer-events:none;
 }
 .premises-card[hidden]{display:none}
 .premise-row{display:flex;flex-direction:column;gap:0.25rem;margin-bottom:0.5rem;padding:0.5rem;background:var(--bg-main);border:0.0625rem solid var(--line);border-radius:0.5rem}
