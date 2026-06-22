@@ -237,6 +237,7 @@ body{
 .help-fab[aria-expanded="true"]{background:var(--accent)}
 .tip{position:fixed;z-index:100;background:var(--ink);color:#fff;font-size:0.75rem;font-weight:500;padding:0.3rem 0.6rem;border-radius:0.3rem;pointer-events:none;white-space:nowrap;box-shadow:0 0.1rem 0.4rem #0003;transform:translateX(-50%)}
 .tip::after{content:'';position:absolute;left:50%;bottom:-0.25rem;transform:translateX(-50%);border:0.25rem solid transparent;border-top-color:var(--ink);border-bottom:0}
+.tip--below::after{bottom:auto;top:-0.25rem;border-top:0;border-bottom-color:var(--ink)}
 .hint{position:fixed;top:4rem;left:50%;transform:translateX(-50%);z-index:30;background:var(--content);border:0.0625rem solid var(--line);border-radius:0.5rem;padding:0.7rem 0.9rem;box-shadow:0 0.25rem 0.8rem #00000026;display:flex;flex-direction:column;gap:0.5rem;max-width:24rem;pointer-events:none}
 .hint[hidden]{display:none}
 .hint p{margin:0;font-size:0.82rem;color:var(--ink);line-height:1.4}
@@ -1460,8 +1461,10 @@ if (location.protocol==='file:') window.__argBuilder={ state,
   function place(){
     if(!target) return;
     const r=target.getBoundingClientRect();
+    const below = r.top - tip.offsetHeight - 6 < 8;  // not enough room above → flip below
+    tip.classList.toggle('tip--below', below);
     tip.style.left=(r.left+r.width/2)+'px';
-    tip.style.top=(r.top-tip.offsetHeight-6)+'px';
+    tip.style.top=(below ? r.bottom + 6 : r.top - tip.offsetHeight - 6)+'px';
   }
   function hide(){ target=null; tip.hidden=true; }
   document.addEventListener('mouseover',(e)=>{ const el=e.target.closest('[data-tip]'); if(el) show(el); else if(!e.target.closest('.tip')) hide(); });
