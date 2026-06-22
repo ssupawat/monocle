@@ -216,6 +216,7 @@ body{
 .tip{position:fixed;z-index:100;background:var(--ink);color:#fff;font-size:0.75rem;font-weight:500;padding:0.3rem 0.6rem;border-radius:0.3rem;pointer-events:none;white-space:nowrap;box-shadow:0 0.1rem 0.4rem #0003;transform:translateX(-50%)}
 .tip::after{content:'';position:absolute;left:50%;bottom:-0.25rem;transform:translateX(-50%);border:0.25rem solid transparent;border-top-color:var(--ink);border-bottom:0}
 .hint{position:fixed;top:4rem;left:50%;transform:translateX(-50%);z-index:30;background:var(--content);border:0.0625rem solid var(--line);border-radius:0.5rem;padding:0.7rem 0.9rem;box-shadow:0 0.25rem 0.8rem #00000026;display:flex;flex-direction:column;gap:0.5rem;max-width:24rem;pointer-events:none}
+.hint[hidden]{display:none}
 .hint p{margin:0;font-size:0.82rem;color:var(--ink);line-height:1.4}
 .hint__close{align-self:flex-end;background:var(--accent);color:#fff;border:0;border-radius:0.3rem;padding:0.25rem 0.7rem;font:inherit;font-size:0.75rem;font-weight:600;cursor:pointer;pointer-events:auto}
 .hint__close:hover{background:#3451c4}

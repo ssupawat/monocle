@@ -410,6 +410,19 @@ try {
   const exVerdict = (await page.locator('#verdictBody').innerText()).replace(/\s+/g,' ').trim();
   check('example verdict valid', /valid/i.test(exVerdict) && !/invalid/i.test(exVerdict), exVerdict.slice(0,80));
 
+  // ---- TEST 13: hint shows on first visit, hides on dismiss (computed display) ----
+  console.log('\n=== Test 13: first-visit hint dismiss ===');
+  await page.evaluate(()=>{ localStorage.removeItem('monocle:hintSeen'); });
+  await page.reload(); await page.waitForTimeout(400);
+  const hintShown = await page.evaluate(()=>getComputedStyle(document.getElementById('hint')).display);
+  check('hint visible on first visit', hintShown!=='none', `display=${hintShown}`);
+  await page.click('#hintClose'); await page.waitForTimeout(200);
+  const hintAfter = await page.evaluate(()=>getComputedStyle(document.getElementById('hint')).display);
+  check('hint hidden after dismiss (display=none)', hintAfter==='none', `display=${hintAfter}`);
+  await page.reload(); await page.waitForTimeout(300);
+  const hintReload = await page.evaluate(()=>getComputedStyle(document.getElementById('hint')).display);
+  check('hint stays hidden on reload', hintReload==='none', `display=${hintReload}`);
+
   await page.screenshot({ path:'test-final.png' });
 } finally {
   await browser.close();
