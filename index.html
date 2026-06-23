@@ -49,7 +49,9 @@ body{
   background:var(--content);border:0.0625rem solid var(--hairline);
   border-radius:0.375rem;padding:0.25rem;
   box-shadow:0 0.1rem 0.4rem #0000000a;
+  pointer-events:none;   /* let clicks on the transparent padding pass through to the canvas */
 }
+.top-pill .button,.top-pill .add-group,.top-pill .examples-menu{pointer-events:auto}
 .top-pill .button{border-radius:0.375rem}
 
 /* ---------- floating validity card (right, full-height card) ---------- */
@@ -68,6 +70,7 @@ body{
   border:0.0625rem solid transparent;
   transition:background .12s,color .12s,border-color .12s;
   cursor:pointer;
+  white-space:nowrap;   /* keep icon+label on one line so a wider pill never wraps button text */
 }
 .button:focus-visible{outline:0.125rem solid var(--link);outline-offset:0.0625rem}
 .button--primary{background:var(--ink);color:#fff;border-color:var(--ink)}
@@ -302,6 +305,29 @@ body{
 .equiv-equiv{align-self:center;font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.9rem;color:var(--muted)}
 .equiv-result{font-size:0.82rem;color:var(--ink);line-height:1.45}
 .equiv-err{color:var(--invalid);font-size:0.78rem}
+
+/* ---------- natural deduction proof modal ---------- */
+.proof-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:40;width:min(34rem,calc(100vw - 2.2rem));max-height:calc(100vh - 4rem);overflow:auto;background:var(--content);border:0.0625rem solid var(--line);border-radius:0.75rem;box-shadow:0 0.4rem 1.2rem #00000026;padding:1.1rem;display:flex;flex-direction:column;gap:0.7rem}
+.proof-modal[hidden]{display:none}
+.proof-modal h2{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.78rem;text-transform:uppercase;letter-spacing:0;color:var(--muted);margin:0;font-weight:500}
+.proof-target{margin:0;font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.82rem;color:var(--body);background:#0000000a;padding:0.5rem 0.6rem;border-radius:0.375rem;word-break:break-word}
+.proof-lines{list-style:decimal inside;margin:0;padding:0;display:flex;flex-direction:column;gap:0.3rem;max-height:14rem;overflow:auto}
+.proof-line{display:flex;align-items:baseline;gap:0.4rem;padding:0.35rem 0.5rem;border:0.0625rem solid var(--line);border-radius:0.375rem;font-size:0.82rem}
+.proof-line__f{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);flex:1;word-break:break-word}
+.proof-line__r{font-size:0.72rem;color:var(--mute);white-space:nowrap}
+.proof-line--bad{border-color:#ee000055}
+.proof-line--bad .proof-line__f{color:var(--invalid)}
+.proof-line--prem{background:#00000005}
+.proof-add{display:flex;flex-direction:column;gap:0.4rem;border-top:0.0625rem solid var(--line);padding-top:0.6rem}
+.proof-add__row{display:flex;gap:0.4rem}
+.proof-select{font:inherit;font-size:0.82rem;color:var(--ink);border:0.0625rem solid var(--line);border-radius:0.375rem;padding:0.35rem 0.4rem;background:#fff;outline:none;flex:1}
+.proof-refs{flex:0 0 9rem}
+.proof-cand{flex:1}
+.proof-status{margin:0;font-size:0.78rem;color:var(--invalid);min-height:1rem}
+.proof-status--ok{color:var(--valid)}
+.proof-actions{display:flex;justify-content:space-between;gap:0.5rem;align-items:center}
+.proof-actions .premises-add{flex:0 0 auto}
+.proof-complete{margin:0;padding:0.5rem 0.6rem;border-radius:0.375rem;font-size:0.82rem;font-weight:600;color:var(--valid);background:#0070f31f;text-align:center}
 </style>
 </head>
 <body>
@@ -327,8 +353,9 @@ body{
     <button class="button button--tertiary" id="premFab" aria-expanded="false"><span class="material-icons">menu_book</span>Premises</button>
     <button class="button button--tertiary" id="validityFab" aria-expanded="false"><span class="material-icons">rule</span>Validity</button>
     <button class="button button--tertiary" id="clearBtn"><span class="material-icons">delete_sweep</span>Clear</button>
-    <button class="button button--tertiary" id="shareBtn" data-tip="Copy a shareable link"><span class="material-icons">link</span>Share</button>
-    <button class="button button--tertiary" id="equivBtn" data-tip="Check if two formulas are logically equivalent"><span class="material-icons">balance</span>Equivalence</button>
+    <button class="button button--tertiary" id="shareBtn" data-tip="Share"><span class="material-icons">link</span></button>
+    <button class="button button--tertiary" id="equivBtn" data-tip="Equivalence"><span class="material-icons">balance</span></button>
+    <button class="button button--tertiary" id="proofBtn" data-tip="Proof"><span class="material-icons">account_tree</span></button>
   </div>
 
   <!-- floating validity card (left) -->
@@ -392,6 +419,28 @@ body{
   <div class="equiv-row"><span class="equiv-row__lbl">ψ</span><input class="equiv-input" id="equivPsi" placeholder="q ∧ p" spellcheck="false" autocomplete="off"></div>
   <div class="equiv-result" id="equivResult">Enter two formulas.</div>
   <button class="premises-add" id="equivClose"><span class="material-icons">check</span> Done</button>
+</section>
+
+<!-- natural deduction proof modal -->
+<section class="proof-modal" id="proofModal" hidden aria-hidden="true">
+  <h2>Natural deduction proof</h2>
+  <p class="proof-target" id="proofTarget"></p>
+  <ol class="proof-lines" id="proofLines"></ol>
+  <div class="proof-add" id="proofAdd">
+    <div class="proof-add__row">
+      <select class="proof-select" id="proofRule" aria-label="Rule"></select>
+      <input class="equiv-input proof-refs" id="proofRefs" placeholder="from lines (e.g. 1, 2)" inputmode="numeric" autocomplete="off">
+    </div>
+    <div class="proof-add__row">
+      <input class="equiv-input proof-cand" id="proofCand" placeholder="derived formula" spellcheck="false" autocomplete="off">
+      <button class="premises-add" id="proofApplyBtn"><span class="material-icons">add</span>Apply</button>
+    </div>
+    <p class="proof-status" id="proofStatus"></p>
+  </div>
+  <div class="proof-actions">
+    <button class="button button--tertiary" id="proofReset">Reset</button>
+    <button class="premises-add" id="proofDone"><span class="material-icons">check</span> Done</button>
+  </div>
 </section>
 
 <script>
@@ -597,6 +646,8 @@ const state={
   dragging:null,       // {id, dx, dy}
   zoom:1, panX:0, panY:0,
   premises:[],         // [{symbol, description}]
+  proofMode:false,     // natural-deduction proof mode toggle
+  proof:null,          // {targetConclusionId, lines:[{id,formula,rule,refs:[num],valid,reason}]}
 };
 const ZOOM_MIN=0.4, ZOOM_MAX=2.5;
 const canvas=document.getElementById('canvas');
@@ -619,6 +670,8 @@ function saveState(){
         wires:state.wires.map(w=>({id:w.id,from:w.from,to:w.to,type:w.type})),
         expanded:[...state.expanded],
         premises:state.premises.map(p=>({symbol:p.symbol,description:p.description})),
+        proofMode:!!state.proofMode,
+        proof:state.proof,
       }));
     }catch(e){/* ignore quota / disabled */}
   },200);
@@ -664,6 +717,12 @@ function loadState(){
     }
     state.expanded=new Set((s.expanded||[]).filter(id=>validIds.has(id)));
     state.premises=Array.isArray(s.premises)?s.premises.filter(p=>p&&typeof p.symbol==='string'&&typeof p.description==='string').map(p=>({symbol:p.symbol,description:p.description})):[];
+    state.proofMode=!!s.proofMode;
+    state.proof = (s.proof && typeof s.proof==='object' && Array.isArray(s.proof.lines)) ? {
+      targetConclusionId: Number.isFinite(s.proof.targetConclusionId)?s.proof.targetConclusionId:null,
+      lines: s.proof.lines.filter(l=>l && typeof l.formula==='string' && typeof l.rule==='string' && Array.isArray(l.refs))
+             .map(l=>({id:l.id, formula:l.formula, rule:l.rule, refs:l.refs, valid:!!l.valid, reason:l.reason||''})),
+    } : null;
     // return true if a valid store exists (even if empty) so an intentionally-cleared canvas survives refresh
     return true;
   }catch(e){return false;}
@@ -682,6 +741,8 @@ function encodeState(){
     wires:state.wires.map(w=>({id:w.id,from:w.from,to:w.to,type:w.type})),
     expanded:[...state.expanded],
     premises:state.premises.map(p=>({symbol:p.symbol,description:p.description})),
+    proofMode:!!state.proofMode,
+    proof:state.proof,
   });
   // btoa needs binary; encodeURIComponent + unescape handles Unicode (the logic symbols ¬∧∨→↔, etc.)
   const b64=btoa(unescape(encodeURIComponent(payload)));
@@ -1956,6 +2017,101 @@ function loadExample(key){
     }
   }
   phi.addEventListener('input',run); psi.addEventListener('input',run);
+})();
+
+/* ================= natural deduction proof modal ================= */
+(function(){
+  const btn=document.getElementById('proofBtn'), modal=document.getElementById('proofModal');
+  const targetEl=document.getElementById('proofTarget'), linesEl=document.getElementById('proofLines');
+  const ruleSel=document.getElementById('proofRule'), refsIn=document.getElementById('proofRefs');
+  const candIn=document.getElementById('proofCand'), statusEl=document.getElementById('proofStatus');
+  const applyBtn=document.getElementById('proofApplyBtn'), resetBtn=document.getElementById('proofReset'), doneBtn=document.getElementById('proofDone');
+  if(!btn||!modal) return;
+  let lineId=1;
+  function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+  // populate the rule dropdown once
+  ruleSel.innerHTML=PROOF_RULES.map(r=>'<option value="'+r.name+'">'+r.name+'</option>').join('');
+  // arity hint on rule change
+  ruleSel.addEventListener('change',()=>{ const r=PROOF_RULES.find(x=>x.name===ruleSel.value); refsIn.placeholder=r?('from '+r.arity+' line'+(r.arity>1?'s':'')+' (e.g. '+(r.arity>1?'1, 2':'1')+')'):''; });
+  function set(open){
+    modal.hidden=!open; modal.setAttribute('aria-hidden',open?'false':'true'); btn.setAttribute('aria-expanded',open?'true':'false');
+    if(open){ seedIfNeeded(); renderProof(); setTimeout(()=>candIn.focus(),0); ruleSel.dispatchEvent(new Event('change')); }
+    persist();
+  }
+  // pick the step to prove: the selected step, else the first conclusion, else null
+  function targetStepId(){
+    if(state.selectedStep && B(state.selectedStep) && premisesOf(state.selectedStep).length>0) return state.selectedStep;
+    const cs=stepConclusions(); return cs.length?cs[0]:null;
+  }
+  function seedIfNeeded(){
+    const sid=targetStepId();
+    if(state.proof && state.proof.targetConclusionId===sid) return;   // keep an in-progress proof
+    if(!sid){ state.proof=null; return; }
+    const r=evaluateStep(sid);
+    if(r.state!=='eval'){ state.proof=null; return; }
+    lineId=1;
+    const lines=r.premises.map(p=>({id:lineId++, formula:p.label.trim(), rule:'Premise', refs:[], valid:true, reason:''}));
+    state.proof={targetConclusionId:sid, lines};
+  }
+  function renderProof(){
+    const p=state.proof;
+    if(!p || !B(p.targetConclusionId)){
+      targetEl.textContent='Select a concluded block (click it), then reopen Proof.';
+      linesEl.innerHTML=''; statusEl.textContent=''; return;
+    }
+    const r=evaluateStep(p.targetConclusionId);
+    targetEl.textContent = r.state==='eval' ? r.argStr : '(invalid step)';
+    linesEl.innerHTML=p.lines.map((l,i)=>{
+      const num=i+1;
+      const refTxt=l.refs.length?' ('+l.rule+', '+l.refs.map(n=>'#'+n).join(', ')+')':' ('+l.rule+')';
+      return '<li class="proof-line'+(l.rule==='Premise'?' proof-line--prem':'')+(!l.valid?' proof-line--bad':'')+'">'+
+        '<span class="proof-line__f">'+esc(l.formula)+(l.valid?'':' ✗')+'</span>'+
+        '<span class="proof-line__r">'+esc(refTxt)+'</span></li>';
+    }).join('');
+    // completion: last line valid AND equivalent to the target conclusion
+    const conclLabel=B(p.targetConclusionId).label;
+    let complete=false;
+    if(p.lines.length){
+      const last=p.lines[p.lines.length-1];
+      if(last.valid){ const ce=checkEquivalence(last.formula, conclLabel); complete = ce.state==='equiv' && ce.equivalent; }
+    }
+    // insert or update a completion banner as the first child of linesEl's parent region
+    let banner=linesEl.previousElementSibling;
+    if(banner && banner.classList.contains('proof-complete')){ banner.remove(); banner=null; }
+    if(complete){
+      const b=document.createElement('p'); b.className='proof-complete'; b.textContent='✓ Proof complete: '+conclLabel+' derived.';
+      linesEl.parentNode.insertBefore(b, linesEl);
+    }
+  }
+  function applyStep(){
+    statusEl.className='proof-status'; statusEl.textContent='';
+    const p=state.proof; if(!p) return;
+    const cand=candIn.value.trim(); if(!cand){ statusEl.textContent='Enter a derived formula.'; return; }
+    const cp=tryParse(cand);
+    if(cp.err){ statusEl.textContent='φ: '+cp.err; return; }
+    // parse refs: comma/space separated 1-based line numbers
+    const refNums=refsIn.value.split(/[\s,]+/).map(s=>parseInt(s,10)).filter(n=>Number.isFinite(n)&&n>=1&&n<=p.lines.length);
+    const refAsts=refNums.map(n=>{ const f=p.lines[n-1].formula; return tryParse(f).ast; });
+    const claimedRule=ruleSel.value;
+    const res=proofApply(refAsts, cp.ast, claimedRule);
+    if(!res.ok){ statusEl.textContent=res.reason; return; }
+    p.lines.push({id:lineId++, formula:cand, rule:claimedRule, refs:refNums, valid:true, reason:''});
+    candIn.value=''; refsIn.value='';
+    statusEl.className='proof-status proof-status--ok'; statusEl.textContent='✓ '+claimedRule+' applied (line '+(p.lines.length)+').';
+    renderProof(); persist();
+  }
+  function reset(){
+    if(state.proof){ const sid=state.proof.targetConclusionId; state.proof=null; seedIfNeeded(); }
+    renderProof(); persist();
+  }
+  btn.addEventListener('click',(e)=>{ e.stopPropagation(); set(modal.hidden); });
+  modal.addEventListener('click',(e)=>e.stopPropagation());
+  applyBtn.addEventListener('click',(e)=>{ e.stopPropagation(); applyStep(); });
+  resetBtn.addEventListener('click',(e)=>{ e.stopPropagation(); reset(); });
+  doneBtn.addEventListener('click',(e)=>{ e.stopPropagation(); set(false); });
+  candIn.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); applyStep(); } });
+  document.addEventListener('click',(e)=>{ if(!modal.hidden && !modal.contains(e.target) && e.target!==btn) set(false); });
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && !modal.hidden) set(false); });
 })();
 
 // boot: a URL hash wins (shareable link); otherwise restore saved work, else the example
