@@ -68,8 +68,8 @@ body{
 
 /* ---------- floating validity card (right, full-height card) ---------- */
 .validity-card{
-  position:absolute;top:0;right:0;z-index:12;
-  width:21rem;height:100vh;overflow:auto;
+  position:absolute;top:3.75rem;right:0;z-index:12;
+  width:21rem;height:calc(100vh - 3.75rem);overflow:auto;
   pointer-events:none;
 }
 .validity-card[hidden]{display:none}
@@ -256,8 +256,8 @@ body{
 
 /* ---------- premises panel (left side) ---------- */
 .premises-card{
-  position:absolute;top:0;left:0;z-index:12;
-  width:21rem;height:100vh;overflow:auto;
+  position:absolute;top:3.75rem;left:0;z-index:12;
+  width:21rem;height:calc(100vh - 3.75rem);overflow:auto;
   background:transparent;padding:1rem 1.1rem;
   pointer-events:none;
 }
