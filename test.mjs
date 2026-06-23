@@ -740,52 +740,6 @@ try {
   const errText = await page.evaluate(()=>document.querySelector('.block__err')?.textContent.trim() || '');
   check('normal blur still shows parse error (feature intact)', /Unexpected end/i.test(errText), `err="${errText}"`);
 
-  // ---- TEST 22: equivalence checker (DPLL-based) ----
-  console.log('\n=== Test 22: logical equivalence checker ===');
-  // engine unit checks against brute force
-  const eqUnit = await page.evaluate(()=>{
-    const L=window.__logic;
-    function varsOf(n,acc){ acc=acc||new Set(); if(!n) return acc; if(n.t==='var')acc.add(n.v); else if(n.t==='not')varsOf(n.a,acc); else {varsOf(n.a,acc);varsOf(n.b,acc);} return acc; }
-    function evalAst(n,env){ switch(n.t){case 'var':return !!env[n.v];case 'not':return !evalAst(n.a,env);case 'and':return evalAst(n.a,env)&&evalAst(n.b,env);case 'or':return evalAst(n.a,env)||evalAst(n.b,env);case 'imp':return (!evalAst(n.a,env))||evalAst(n.b,env);case 'iff':return evalAst(n.a,env)===evalAst(n.b,env);} }
-    function brute(a,b){ const vars=[...new Set([...varsOf(a),...varsOf(b)])].sort(); const n=vars.length; for(let m=0;m<(1<<n);m++){ const env={}; vars.forEach((v,k)=>env[v]=!!((m>>(n-1-k))&1)); if(evalAst(a,env)!==evalAst(b,env)) return false; } return true; }
-    const pairs=[['p ∧ q','q ∧ p'],['¬(p ∧ q)','¬p ∨ ¬q'],['p → q','¬q → ¬p'],['¬¬p','p'],['p ↔ q','(p → q) ∧ (q → p)'],['p ∧ q','p ∨ q'],['p → q','q → p']];
-    let ok=true; const out=[];
-    for(const [sa,sb] of pairs){ const a=L.tryParse(sa).ast, bb=L.tryParse(sb).ast; const r=L.checkEquivalence(sa,sb); const truth=brute(a,bb);
-      const verdict = r.state==='equiv'&&r.equivalent;
-      if(verdict!==truth) ok=false;
-      out.push(sa+' ≡ '+sb+' => '+(verdict?'EQUIV':'DIFF')+' (brute '+(truth?'EQUIV':'DIFF')+')');
-      if(!truth){ if(!r.env||evalAst(a,r.env)===evalAst(bb,r.env)) ok=false; } }
-    // parse errors
-    if(L.checkEquivalence('p →','q').state!=='parse') ok=false;
-    if(L.checkEquivalence('p','q ∧').who!=='ψ') ok=false;
-    return {ok, out};
-  });
-  check('engine equivalence verdicts match brute force', eqUnit.ok, eqUnit.out.join(' | '));
-
-  // UI: open modal, type De Morgan pair, expect "Logically equivalent"
-  await page.evaluate(()=>document.getElementById('equivBtn').click()); await page.waitForTimeout(150);
-  check('equivalence modal opens', await page.evaluate(()=>!document.getElementById('equivModal').hidden));
-  await page.locator('#equivPhi').fill('¬(p ∧ q)');
-  await page.locator('#equivPsi').fill('¬p ∨ ¬q');
-  await page.waitForTimeout(150);
-  let res = await page.evaluate(()=>document.getElementById('equivResult').textContent.replace(/\s+/g,' ').trim());
-  check('De Morgan: ¬(p∧q) ≡ ¬p∨¬q shows equivalent', /Logically equivalent/i.test(res), res);
-  // non-equivalent: p∧q vs p∨q -> not equivalent with a witness
-  await page.locator('#equivPhi').fill('p ∧ q');
-  await page.locator('#equivPsi').fill('p ∨ q');
-  await page.waitForTimeout(150);
-  res = await page.evaluate(()=>document.getElementById('equivResult').textContent.replace(/\s+/g,' ').trim());
-  check('p∧q vs p∨q shows not equivalent', /Not equivalent/i.test(res), res);
-  check('shows a differing witness assignment', /differ when/i.test(res) && /[pq]=[TF]/i.test(res), res);
-  // parse error in the modal
-  await page.locator('#equivPhi').fill('p →');
-  await page.waitForTimeout(150);
-  res = await page.evaluate(()=>document.getElementById('equivResult').textContent.replace(/\s+/g,' ').trim());
-  check('malformed φ shows parse error in modal', /φ/i.test(res) && /unexpected/i.test(res), res);
-  // Esc closes the modal
-  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
-  check('Esc closes equivalence modal', await page.evaluate(()=>document.getElementById('equivModal').hidden));
-
   await page.screenshot({ path:'test-final.png' });
 } finally {
   await browser.close();

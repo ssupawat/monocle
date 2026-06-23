@@ -294,40 +294,6 @@ body{
 .help-pop code{background:#0000000d;padding:0.05rem 0.3rem;border-radius:0.375rem;font-size:0.8rem}
 .help-pop[hidden]{display:none}
 
-/* ---------- equivalence checker modal ---------- */
-.equiv-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:40;width:min(30rem,calc(100vw - 2.2rem));background:var(--content);border:0.0625rem solid var(--line);border-radius:0.75rem;box-shadow:0 0.4rem 1.2rem #00000026;padding:1.1rem;display:flex;flex-direction:column;gap:0.7rem}
-.equiv-modal[hidden]{display:none}
-.equiv-modal h2{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.78rem;text-transform:uppercase;letter-spacing:0;color:var(--muted);margin:0;font-weight:500}
-.equiv-row{display:flex;align-items:center;gap:0.5rem}
-.equiv-row__lbl{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.8rem;color:var(--body);width:1rem;flex-shrink:0}
-.equiv-input{flex:1;font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.9rem;font-weight:600;color:var(--ink);border:0.0625rem solid var(--line);border-radius:0.375rem;padding:0.4rem 0.5rem;background:#fff;outline:none}
-.equiv-input:focus{border-color:var(--accent)}
-.equiv-equiv{align-self:center;font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.9rem;color:var(--muted)}
-.equiv-result{font-size:0.82rem;color:var(--ink);line-height:1.45}
-.equiv-err{color:var(--invalid);font-size:0.78rem}
-
-/* ---------- natural deduction proof modal ---------- */
-.proof-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:40;width:min(34rem,calc(100vw - 2.2rem));max-height:calc(100vh - 4rem);overflow:auto;background:var(--content);border:0.0625rem solid var(--line);border-radius:0.75rem;box-shadow:0 0.4rem 1.2rem #00000026;padding:1.1rem;display:flex;flex-direction:column;gap:0.7rem}
-.proof-modal[hidden]{display:none}
-.proof-modal h2{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.78rem;text-transform:uppercase;letter-spacing:0;color:var(--muted);margin:0;font-weight:500}
-.proof-target{margin:0;font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.82rem;color:var(--body);background:#0000000a;padding:0.5rem 0.6rem;border-radius:0.375rem;word-break:break-word}
-.proof-lines{list-style:decimal inside;margin:0;padding:0;display:flex;flex-direction:column;gap:0.3rem;max-height:14rem;overflow:auto}
-.proof-line{display:flex;align-items:baseline;gap:0.4rem;padding:0.35rem 0.5rem;border:0.0625rem solid var(--line);border-radius:0.375rem;font-size:0.82rem}
-.proof-line__f{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);flex:1;word-break:break-word}
-.proof-line__r{font-size:0.72rem;color:var(--mute);white-space:nowrap}
-.proof-line--bad{border-color:#ee000055}
-.proof-line--bad .proof-line__f{color:var(--invalid)}
-.proof-line--prem{background:#00000005}
-.proof-add{display:flex;flex-direction:column;gap:0.4rem;border-top:0.0625rem solid var(--line);padding-top:0.6rem}
-.proof-add__row{display:flex;gap:0.4rem}
-.proof-select{font:inherit;font-size:0.82rem;color:var(--ink);border:0.0625rem solid var(--line);border-radius:0.375rem;padding:0.35rem 0.4rem;background:#fff;outline:none;flex:1}
-.proof-refs{flex:0 0 9rem}
-.proof-cand{flex:1}
-.proof-status{margin:0;font-size:0.78rem;color:var(--invalid);min-height:1rem}
-.proof-status--ok{color:var(--valid)}
-.proof-actions{display:flex;justify-content:space-between;gap:0.5rem;align-items:center}
-.proof-actions .premises-add{flex:0 0 auto}
-.proof-complete{margin:0;padding:0.5rem 0.6rem;border-radius:0.375rem;font-size:0.82rem;font-weight:600;color:var(--valid);background:#0070f31f;text-align:center}
 </style>
 </head>
 <body>
@@ -354,8 +320,6 @@ body{
     <button class="button button--tertiary" id="validityFab" aria-expanded="false"><span class="material-icons">rule</span>Validity</button>
     <button class="button button--tertiary" id="clearBtn"><span class="material-icons">delete_sweep</span>Clear</button>
     <button class="button button--tertiary" id="shareBtn" data-tip="Share"><span class="material-icons">link</span></button>
-    <button class="button button--tertiary" id="equivBtn" data-tip="Equivalence"><span class="material-icons">balance</span></button>
-    <button class="button button--tertiary" id="proofBtn" data-tip="Proof"><span class="material-icons">account_tree</span></button>
   </div>
 
   <!-- floating validity card (left) -->
@@ -409,38 +373,6 @@ body{
   <p><strong class="" style="color:#ab570a">Trivial</strong> means: the conclusion is already one of the premises. Logically valid, but adds no new information.</p>
   <p><strong>Operators:</strong> <code>¬ ∧ ∨ → ↔</code>, or type <code>! &amp; | -&gt; &lt;-&gt;</code>. Variables are letters like <code>p</code>, <code>q</code>.</p>
   <p class="note">A concluded block can itself be a premise in the next step. Chain steps to build longer arguments.</p>
-</section>
-
-<!-- equivalence checker modal -->
-<section class="equiv-modal" id="equivModal" hidden aria-hidden="true">
-  <h2>Check logical equivalence</h2>
-  <div class="equiv-row"><span class="equiv-row__lbl">φ</span><input class="equiv-input" id="equivPhi" placeholder="p ∧ q" spellcheck="false" autocomplete="off"></div>
-  <div class="equiv-equiv">≡</div>
-  <div class="equiv-row"><span class="equiv-row__lbl">ψ</span><input class="equiv-input" id="equivPsi" placeholder="q ∧ p" spellcheck="false" autocomplete="off"></div>
-  <div class="equiv-result" id="equivResult">Enter two formulas.</div>
-  <button class="premises-add" id="equivClose"><span class="material-icons">check</span> Done</button>
-</section>
-
-<!-- natural deduction proof modal -->
-<section class="proof-modal" id="proofModal" hidden aria-hidden="true">
-  <h2>Natural deduction proof</h2>
-  <p class="proof-target" id="proofTarget"></p>
-  <ol class="proof-lines" id="proofLines"></ol>
-  <div class="proof-add" id="proofAdd">
-    <div class="proof-add__row">
-      <select class="proof-select" id="proofRule" aria-label="Rule"></select>
-      <input class="equiv-input proof-refs" id="proofRefs" placeholder="from lines (e.g. 1, 2)" inputmode="numeric" autocomplete="off">
-    </div>
-    <div class="proof-add__row">
-      <input class="equiv-input proof-cand" id="proofCand" placeholder="derived formula" spellcheck="false" autocomplete="off">
-      <button class="premises-add" id="proofApplyBtn"><span class="material-icons">add</span>Apply</button>
-    </div>
-    <p class="proof-status" id="proofStatus"></p>
-  </div>
-  <div class="proof-actions">
-    <button class="button button--tertiary" id="proofReset">Reset</button>
-    <button class="premises-add" id="proofDone"><span class="material-icons">check</span> Done</button>
-  </div>
 </section>
 
 <script>
@@ -646,8 +578,6 @@ const state={
   dragging:null,       // {id, dx, dy}
   zoom:1, panX:0, panY:0,
   premises:[],         // [{symbol, description}]
-  proofMode:false,     // natural-deduction proof mode toggle
-  proof:null,          // {targetConclusionId, lines:[{id,formula,rule,refs:[num],valid,reason}]}
 };
 const ZOOM_MIN=0.4, ZOOM_MAX=2.5;
 const canvas=document.getElementById('canvas');
@@ -670,8 +600,6 @@ function saveState(){
         wires:state.wires.map(w=>({id:w.id,from:w.from,to:w.to,type:w.type})),
         expanded:[...state.expanded],
         premises:state.premises.map(p=>({symbol:p.symbol,description:p.description})),
-        proofMode:!!state.proofMode,
-        proof:state.proof,
       }));
     }catch(e){/* ignore quota / disabled */}
   },200);
@@ -717,12 +645,6 @@ function loadState(){
     }
     state.expanded=new Set((s.expanded||[]).filter(id=>validIds.has(id)));
     state.premises=Array.isArray(s.premises)?s.premises.filter(p=>p&&typeof p.symbol==='string'&&typeof p.description==='string').map(p=>({symbol:p.symbol,description:p.description})):[];
-    state.proofMode=!!s.proofMode;
-    state.proof = (s.proof && typeof s.proof==='object' && Array.isArray(s.proof.lines)) ? {
-      targetConclusionId: Number.isFinite(s.proof.targetConclusionId)?s.proof.targetConclusionId:null,
-      lines: s.proof.lines.filter(l=>l && typeof l.formula==='string' && typeof l.rule==='string' && Array.isArray(l.refs))
-             .map(l=>({id:l.id, formula:l.formula, rule:l.rule, refs:l.refs, valid:!!l.valid, reason:l.reason||''})),
-    } : null;
     // return true if a valid store exists (even if empty) so an intentionally-cleared canvas survives refresh
     return true;
   }catch(e){return false;}
@@ -741,8 +663,6 @@ function encodeState(){
     wires:state.wires.map(w=>({id:w.id,from:w.from,to:w.to,type:w.type})),
     expanded:[...state.expanded],
     premises:state.premises.map(p=>({symbol:p.symbol,description:p.description})),
-    proofMode:!!state.proofMode,
-    proof:state.proof,
   });
   // btoa needs binary; encodeURIComponent + unescape handles Unicode (the logic symbols ¬∧∨→↔, etc.)
   const b64=btoa(unescape(encodeURIComponent(payload)));
@@ -1074,36 +994,6 @@ function stepPatternTag(conclusionId){
   const cls = pat.valid ? 'valid' : 'invalid';
   return '<span class="pattern-tag pattern-tag--'+cls+'">'+pat.name+(pat.valid?'':' (fallacy)')+'</span>';
 }
-/* ================= natural-deduction proof engine =================
-   A proof line cites a named rule + reference lines; proofApply checks
-   whether that rule legitimately derives the candidate from the refs.
-   Reuses detectPattern as the structural matcher. */
-const PROOF_RULES=[
-  {name:'Modus Ponens',          arity:2},
-  {name:'Modus Tollens',         arity:2},
-  {name:'Hypothetical Syllogism',arity:2},
-  {name:'Disjunctive Syllogism', arity:2},
-  {name:'Conjunction',           arity:2},
-  {name:'Constructive Dilemma',  arity:3},
-  {name:'Destructive Dilemma',   arity:3},
-  {name:'Simplification',        arity:1},
-  {name:'Addition',              arity:1},
-];
-// refs: AST[] (referenced lines), candidate: AST, claimedRule: string
-// returns {ok:true} or {ok:false, reason}
-function proofApply(refs, candidate, claimedRule){
-  if(!Array.isArray(refs) || refs.length===0) return {ok:false, reason:'No reference lines selected.'};
-  if(!candidate) return {ok:false, reason:'Empty formula.'};
-  const rule=PROOF_RULES.find(r=>r.name===claimedRule);
-  if(!rule) return {ok:false, reason:'Unknown rule: '+claimedRule};
-  if(refs.length!==rule.arity) return {ok:false, reason:claimedRule+' needs '+rule.arity+' reference line'+(rule.arity>1?'s':'')+', got '+refs.length+'.'};
-  const pat=detectPattern(refs, candidate);
-  if(pat && pat.valid && pat.name===claimedRule) return {ok:true};
-  const reason = pat
-    ? (pat.valid ? 'Those lines derive that conclusion by '+pat.name+', not '+claimedRule+'.' : pat.name+' is a fallacy, not a valid rule.')
-    : claimedRule+' does not derive that conclusion from those lines.';
-  return {ok:false, reason};
-}
 function isTrivial(conclusionId){
   const r=evaluateStep(conclusionId);
   if(r.state!=='eval') return false;
@@ -1304,23 +1194,6 @@ function classifyFormula(ast){
   if(dpll(cnfClauses({t:'not',a:ast},varIndex), vars.length)===null) return 'tautology';
   if(dpll(cnfClauses(ast,varIndex), vars.length)===null) return 'contradiction';
   return 'contingent';
-}
-// Are two formulas logically equivalent?  φ ≡ ψ  iff  (φ ∧ ¬ψ) ∨ (¬φ ∧ ψ)  is UNSAT.
-//   equivalent=true                          -> same truth value under every assignment
-//   equivalent=false + env + phiVal/psiVal   -> a witness assignment where they differ
-//   state='parse'                            -> one side won't parse (err + who)
-function checkEquivalence(phiStr, psiStr){
-  const p=tryParse(phiStr), q=tryParse(psiStr);
-  if(p.err) return {state:'parse', who:'φ', err:p.err};
-  if(q.err) return {state:'parse', who:'ψ', err:q.err};
-  const allVars=new Set(); varsOf(p.ast,allVars); varsOf(q.ast,allVars);
-  const vars=[...allVars].sort();
-  const varIndex=new Map(vars.map((v,i)=>[v,i+1]));
-  const diff={t:'or',a:{t:'and',a:p.ast,b:{t:'not',a:q.ast}},b:{t:'and',a:{t:'not',a:p.ast},b:q.ast}};
-  const model=dpll(cnfClauses(diff,varIndex), vars.length);
-  if(model===null) return {state:'equiv', equivalent:true, vars};
-  const env={}; vars.forEach((v,i)=>env[v]=!!model[i+1]);
-  return {state:'equiv', equivalent:false, vars, env, phiVal:evalAst(p.ast,env), psiVal:evalAst(q.ast,env)};
 }
 function renderBlockTruth(b, el){
   el=el||canvas.querySelector('.block[data-id="'+b.id+'"]'); if(!el) return;
@@ -1985,134 +1858,6 @@ function loadExample(key){
   });
 })();
 
-/* ================= equivalence checker modal ================= */
-(function(){
-  const btn=document.getElementById('equivBtn'), modal=document.getElementById('equivModal');
-  const phi=document.getElementById('equivPhi'), psi=document.getElementById('equivPsi');
-  const result=document.getElementById('equivResult'), close=document.getElementById('equivClose');
-  if(!btn||!modal) return;
-  const set=(open)=>{ modal.hidden=!open; modal.setAttribute('aria-hidden',open?'false':'true'); btn.setAttribute('aria-expanded',open?'true':'false'); if(open) setTimeout(()=>phi.focus(),0); };
-  btn.addEventListener('click',(e)=>{ e.stopPropagation(); set(modal.hidden); });
-  modal.addEventListener('click',(e)=>e.stopPropagation());
-  close.addEventListener('click',(e)=>{ e.stopPropagation(); set(false); });
-  document.addEventListener('click',(e)=>{ if(!modal.hidden && !modal.contains(e.target) && e.target!==btn) set(false); });
-  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && !modal.hidden) set(false); });
-  function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
-  function run(){
-    const a=phi.value.trim(), b=psi.value.trim();
-    if(!a && !b){ result.className='equiv-result'; result.innerHTML='Enter two formulas.'; return; }
-    const r=checkEquivalence(phi.value, psi.value);
-    if(r.state==='parse'){
-      result.className='equiv-result equiv-err';
-      result.innerHTML=esc(r.who)+': '+esc(r.err);
-      return;
-    }
-    if(r.equivalent){
-      result.className='equiv-result';
-      result.innerHTML='<span style="color:var(--valid);font-weight:600">✓ Logically equivalent</span> — true under exactly the same assignments.';
-    }else{
-      const parts=r.vars.map(v=>v+'='+(r.env[v]?'T':'F')).join(', ');
-      result.className='equiv-result';
-      result.innerHTML='<span style="color:var(--invalid);font-weight:600">✗ Not equivalent</span>. They differ when '+esc(parts)+' (φ='+(r.phiVal?'T':'F')+', ψ='+(r.psiVal?'T':'F')+').';
-    }
-  }
-  phi.addEventListener('input',run); psi.addEventListener('input',run);
-})();
-
-/* ================= natural deduction proof modal ================= */
-(function(){
-  const btn=document.getElementById('proofBtn'), modal=document.getElementById('proofModal');
-  const targetEl=document.getElementById('proofTarget'), linesEl=document.getElementById('proofLines');
-  const ruleSel=document.getElementById('proofRule'), refsIn=document.getElementById('proofRefs');
-  const candIn=document.getElementById('proofCand'), statusEl=document.getElementById('proofStatus');
-  const applyBtn=document.getElementById('proofApplyBtn'), resetBtn=document.getElementById('proofReset'), doneBtn=document.getElementById('proofDone');
-  if(!btn||!modal) return;
-  let lineId=1;
-  function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
-  // populate the rule dropdown once
-  ruleSel.innerHTML=PROOF_RULES.map(r=>'<option value="'+r.name+'">'+r.name+'</option>').join('');
-  // arity hint on rule change
-  ruleSel.addEventListener('change',()=>{ const r=PROOF_RULES.find(x=>x.name===ruleSel.value); refsIn.placeholder=r?('from '+r.arity+' line'+(r.arity>1?'s':'')+' (e.g. '+(r.arity>1?'1, 2':'1')+')'):''; });
-  function set(open){
-    modal.hidden=!open; modal.setAttribute('aria-hidden',open?'false':'true'); btn.setAttribute('aria-expanded',open?'true':'false');
-    if(open){ seedIfNeeded(); renderProof(); setTimeout(()=>candIn.focus(),0); ruleSel.dispatchEvent(new Event('change')); }
-    persist();
-  }
-  // pick the step to prove: the selected step, else the first conclusion, else null
-  function targetStepId(){
-    if(state.selectedStep && B(state.selectedStep) && premisesOf(state.selectedStep).length>0) return state.selectedStep;
-    const cs=stepConclusions(); return cs.length?cs[0]:null;
-  }
-  function seedIfNeeded(){
-    const sid=targetStepId();
-    if(state.proof && state.proof.targetConclusionId===sid) return;   // keep an in-progress proof
-    if(!sid){ state.proof=null; return; }
-    const r=evaluateStep(sid);
-    if(r.state!=='eval'){ state.proof=null; return; }
-    lineId=1;
-    const lines=r.premises.map(p=>({id:lineId++, formula:p.label.trim(), rule:'Premise', refs:[], valid:true, reason:''}));
-    state.proof={targetConclusionId:sid, lines};
-  }
-  function renderProof(){
-    const p=state.proof;
-    if(!p || !B(p.targetConclusionId)){
-      targetEl.textContent='Select a concluded block (click it), then reopen Proof.';
-      linesEl.innerHTML=''; statusEl.textContent=''; return;
-    }
-    const r=evaluateStep(p.targetConclusionId);
-    targetEl.textContent = r.state==='eval' ? r.argStr : '(invalid step)';
-    linesEl.innerHTML=p.lines.map((l,i)=>{
-      const num=i+1;
-      const refTxt=l.refs.length?' ('+l.rule+', '+l.refs.map(n=>'#'+n).join(', ')+')':' ('+l.rule+')';
-      return '<li class="proof-line'+(l.rule==='Premise'?' proof-line--prem':'')+(!l.valid?' proof-line--bad':'')+'">'+
-        '<span class="proof-line__f">'+esc(l.formula)+(l.valid?'':' ✗')+'</span>'+
-        '<span class="proof-line__r">'+esc(refTxt)+'</span></li>';
-    }).join('');
-    // completion: last line valid AND equivalent to the target conclusion
-    const conclLabel=B(p.targetConclusionId).label;
-    let complete=false;
-    if(p.lines.length){
-      const last=p.lines[p.lines.length-1];
-      if(last.valid){ const ce=checkEquivalence(last.formula, conclLabel); complete = ce.state==='equiv' && ce.equivalent; }
-    }
-    // insert or update a completion banner as the first child of linesEl's parent region
-    let banner=linesEl.previousElementSibling;
-    if(banner && banner.classList.contains('proof-complete')){ banner.remove(); banner=null; }
-    if(complete){
-      const b=document.createElement('p'); b.className='proof-complete'; b.textContent='✓ Proof complete: '+conclLabel+' derived.';
-      linesEl.parentNode.insertBefore(b, linesEl);
-    }
-  }
-  function applyStep(){
-    statusEl.className='proof-status'; statusEl.textContent='';
-    const p=state.proof; if(!p) return;
-    const cand=candIn.value.trim(); if(!cand){ statusEl.textContent='Enter a derived formula.'; return; }
-    const cp=tryParse(cand);
-    if(cp.err){ statusEl.textContent='φ: '+cp.err; return; }
-    // parse refs: comma/space separated 1-based line numbers
-    const refNums=refsIn.value.split(/[\s,]+/).map(s=>parseInt(s,10)).filter(n=>Number.isFinite(n)&&n>=1&&n<=p.lines.length);
-    const refAsts=refNums.map(n=>{ const f=p.lines[n-1].formula; return tryParse(f).ast; });
-    const claimedRule=ruleSel.value;
-    const res=proofApply(refAsts, cp.ast, claimedRule);
-    if(!res.ok){ statusEl.textContent=res.reason; return; }
-    p.lines.push({id:lineId++, formula:cand, rule:claimedRule, refs:refNums, valid:true, reason:''});
-    candIn.value=''; refsIn.value='';
-    statusEl.className='proof-status proof-status--ok'; statusEl.textContent='✓ '+claimedRule+' applied (line '+(p.lines.length)+').';
-    renderProof(); persist();
-  }
-  function reset(){
-    if(state.proof){ const sid=state.proof.targetConclusionId; state.proof=null; seedIfNeeded(); }
-    renderProof(); persist();
-  }
-  btn.addEventListener('click',(e)=>{ e.stopPropagation(); set(modal.hidden); });
-  modal.addEventListener('click',(e)=>e.stopPropagation());
-  applyBtn.addEventListener('click',(e)=>{ e.stopPropagation(); applyStep(); });
-  resetBtn.addEventListener('click',(e)=>{ e.stopPropagation(); reset(); });
-  doneBtn.addEventListener('click',(e)=>{ e.stopPropagation(); set(false); });
-  candIn.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); applyStep(); } });
-  document.addEventListener('click',(e)=>{ if(!modal.hidden && !modal.contains(e.target) && e.target!==btn) set(false); });
-  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && !modal.hidden) set(false); });
-})();
 
 // boot: a URL hash wins (shareable link); otherwise restore saved work, else the example
 {
@@ -2142,7 +1887,7 @@ if (location.protocol==='file:') window.__argBuilder={ state,
   render(){ render(); },
   reset(){ localStorage.removeItem(STORE_KEY); loadExample('rain'); } };
 // test hook: expose logic internals for unit checks (file: only)
-if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, dpll, evalAst, varsOf, evaluateStep, classifyFormula, detectPattern, checkEquivalence, proofApply, PROOF_RULES };
+if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, dpll, evalAst, varsOf, evaluateStep, classifyFormula, detectPattern };
 
 // ---- custom tooltips (data-tip) ----
 (function(){
