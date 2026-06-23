@@ -116,6 +116,10 @@ body{
 .panel h2{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.72rem;text-transform:uppercase;letter-spacing:0;color:var(--body);margin:0 0 0.6rem;font-weight:500}
 
 /* verdict */
+.verdict-head{display:flex;justify-content:space-between;align-items:center;gap:0.5rem;margin-bottom:0.4rem}
+.proof-trigger{padding:0.35rem;line-height:0}
+.proof-trigger .material-icons{margin:0;font-size:1.05rem}
+.proof-trigger[hidden]{display:none}
 .verdict{font-size:0.95rem}
 .verdict__arg{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.85rem;background:#0000000a;padding:0.6rem;border-radius:0.375rem;word-break:break-word}
 .badge{display:inline-block;padding:0.2rem 0.6rem;border-radius:99px;font-weight:600;font-size:0.8rem}
@@ -306,6 +310,30 @@ body{
 .help-pop code{background:#0000000d;padding:0.05rem 0.3rem;border-radius:0.375rem;font-size:0.8rem}
 .help-pop[hidden]{display:none}
 
+/* ---------- view-as-proof readout (read-only modal) ---------- */
+.proof-view{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:40;
+  width:min(32rem,calc(100vw - 2.2rem));max-height:calc(100vh - 4rem);overflow:auto;
+  background:var(--content);border:0.0625rem solid var(--line);border-radius:0.75rem;
+  box-shadow:0 0.4rem 1.2rem #00000026;padding:1.1rem;display:flex;flex-direction:column;gap:0.7rem;
+}
+.proof-view[hidden]{display:none}
+.proof-view__head{display:flex;justify-content:space-between;align-items:center;gap:0.5rem}
+.proof-view__head h2{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.78rem;text-transform:uppercase;letter-spacing:0;color:var(--muted);margin:0;font-weight:500}
+.proof-view__actions{display:flex;gap:0.3rem;align-items:center}
+.proof-view__arg{margin:0;font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.8rem;color:var(--body);background:#0000000a;padding:0.5rem 0.6rem;border-radius:0.375rem;word-break:break-word}
+.proof-view__lines{list-style:none;counter-reset:proof;margin:0;padding:0;display:flex;flex-direction:column;gap:0.3rem}
+.proof-view__line{display:flex;align-items:baseline;gap:0.5rem;padding:0.4rem 0.55rem;border:0.0625rem solid var(--line);border-radius:0.375rem;font-size:0.85rem}
+.proof-view__line--target{border-color:var(--ink);background:#00000005}
+.proof-view__line--bad{border-color:#ee000055}
+.proof-view__num{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.75rem;color:var(--muted);flex:0 0 1.4rem}
+.proof-view__f{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);flex:1;word-break:break-word}
+.proof-view__rule{font-size:0.74rem;color:var(--body);white-space:nowrap}
+.proof-view__rule--bad{color:var(--invalid)}
+.proof-view__verdict{margin:0;padding:0.5rem 0.6rem;border-radius:0.375rem;font-size:0.82rem;font-weight:600;text-align:center}
+.proof-view__verdict--valid{color:var(--valid);background:#0070f31f}
+.proof-view__verdict--invalid{color:var(--invalid);background:#ee00001f}
+
 </style>
 </head>
 <body>
@@ -343,7 +371,10 @@ body{
   <!-- floating validity card (left) -->
   <aside class="validity-card" id="sidebar" hidden>
     <section class="panel verdict" id="verdictPanel">
-      <h2>Validity</h2>
+      <div class="verdict-head">
+        <h2>Validity</h2>
+        <button class="button button--tertiary proof-trigger" id="proofViewBtn" hidden data-tip="Show the argument as a numbered proof" aria-expanded="false" aria-controls="proofView"><span class="material-icons">account_tree</span></button>
+      </div>
       <div id="verdictBody"><span class="badge badge--idle">no argument yet</span>
         <p class="note">Add blocks, join premises with ∧, and draw a ⊨ wire to a conclusion.</p>
       </div>
@@ -391,6 +422,20 @@ body{
   <p><strong class="" style="color:#ab570a">Trivial</strong> means: the conclusion is already one of the premises. Logically valid, but adds no new information.</p>
   <p><strong>Operators:</strong> <code>¬ ∧ ∨ → ↔</code>, or type <code>! &amp; | -&gt; &lt;-&gt;</code>. Variables are letters like <code>p</code>, <code>q</code>.</p>
   <p class="note">A concluded block can itself be a premise in the next step. Chain steps to build longer arguments.</p>
+</section>
+
+<!-- view-as-proof readout (read-only) -->
+<section class="proof-view" id="proofView" hidden aria-hidden="true">
+  <div class="proof-view__head">
+    <h2>Natural-deduction proof</h2>
+    <div class="proof-view__actions">
+      <button class="button button--tertiary" id="proofCopy" data-tip="Copy proof to clipboard"><span class="material-icons">content_copy</span></button>
+      <button class="icon-btn" id="proofClose" data-tip="Close" aria-label="Close"><span class="material-icons">close</span></button>
+    </div>
+  </div>
+  <p class="proof-view__arg" id="proofArg"></p>
+  <ol class="proof-view__lines" id="proofLines"></ol>
+  <p class="proof-view__verdict" id="proofVerdict"></p>
 </section>
 
 <script>
@@ -602,6 +647,7 @@ const canvas=document.getElementById('canvas');
 const wiresSvg=document.getElementById('wires');
 const emptyHint=document.getElementById('emptyHint');
 const verdictBody=document.getElementById('verdictBody');
+const proofTrigger=document.getElementById('proofViewBtn');
 
 function B(id){return state.blocks.find(b=>b.id===id);}
 
@@ -855,6 +901,7 @@ function ceSentence(r){
 }
 function renderVerdict(){
   const conclusions=stepConclusions();
+  if(proofTrigger) proofTrigger.hidden = conclusions.length===0;
   if(!conclusions.length){
     verdictBody.innerHTML='<span class="badge badge--idle">no argument yet</span>'+
       '<p class="note">Lasso-select premise blocks, then click a conclusion.</p>';return;
@@ -885,7 +932,58 @@ function renderVerdict(){
     });
   });
 }
-// branch assignment: depth-1 conclusion = its own branch root; descendants join
+
+/* ================= view-as-proof readout =================
+   Linearizes whatever argument is on the canvas into a numbered
+   natural-deduction proof. Read-only: never edits state. Reuses only
+   existing logic (premisesOf, stepConclusions, upstreamSteps,
+   evaluateStep, detectPattern, B). */
+function buildProof(){
+  const conclusions=stepConclusions();
+  if(!conclusions.length) return null;
+  // target = selected step if it is a real conclusion, else the first conclusion
+  const target = (state.selectedStep!=null && conclusions.includes(state.selectedStep)) ? state.selectedStep : conclusions[0];
+  // all steps in scope: target + its ancestor steps
+  const stepIds=new Set(upstreamSteps(target)); stepIds.add(target);
+  // premise blocks = steps' premise inputs that are NOT themselves derived steps
+  const premiseIds=new Set();
+  stepIds.forEach(cid=>premisesOf(cid).forEach(pid=>{ if(!stepIds.has(pid)) premiseIds.add(pid); }));
+  // topological order: premises first, then steps by derivation depth
+  function depth(cid, seen){ seen=seen||new Set(); if(seen.has(cid)) return 0; seen.add(cid); const ps=premisesOf(cid); if(!ps.length) return 0; return 1+Math.max(...ps.map(p=>stepIds.has(p)?depth(p,seen):0)); }
+  const orderedPrem=[...premiseIds].sort((a,b)=>a-b);
+  const orderedSteps=[...stepIds].sort((a,b)=>depth(a)-depth(b) || a-b);
+  // single numbering across the whole proof
+  const lineNo=new Map();
+  let n=1;
+  orderedPrem.forEach(id=>lineNo.set(id, n++));
+  orderedSteps.forEach(id=>lineNo.set(id, n++));
+  const lines=[];
+  orderedPrem.forEach(id=>{
+    const b=B(id); if(!b) return;
+    lines.push({n:lineNo.get(id), id, formula:b.label.trim(), kind:'premise'});
+  });
+  orderedSteps.forEach(cid=>{
+    const b=B(cid); if(!b) return;
+    const r=evaluateStep(cid);
+    const formula=b.label.trim();
+    const refs=premisesOf(cid).filter(pid=>lineNo.has(pid)).map(pid=>lineNo.get(pid)).sort((a,b)=>a-b);
+    let rule='';
+    let valid=false;
+    if(r.state==='eval'){
+      valid=r.valid;
+      const pat=r.premises.length?detectPattern(r.premises.map(p=>p.ast), r.conclusion.ast):null;
+      rule = (pat && pat.valid) ? pat.name : (valid ? 'valid (truth-functional)' : 'invalid');
+    } else if (r.state==='parse'){
+      rule='parse error';
+    } else {
+      rule='broken';
+    }
+    lines.push({n:lineNo.get(cid), id:cid, formula, kind:'step', rule, refs, valid, isTarget:cid===target});
+  });
+  const finalResult=evaluateStep(target);
+  const verdict = finalResult.state==='eval' ? (finalResult.valid?'valid':'invalid') : (finalResult.state==='parse'?'parse error':'broken');
+  return {target, verdict, lines, argStr:finalResult.state==='eval'?finalResult.argStr:''};
+}
 function branchRootOf(cid, seen){
   seen = seen || new Set();
   if(seen.has(cid)) return cid;
@@ -1876,6 +1974,80 @@ function loadExample(key){
   });
 })();
 
+/* ================= view-as-proof modal ================= */
+(function(){
+  const btn=document.getElementById('proofViewBtn');
+  const modal=document.getElementById('proofView');
+  const argEl=document.getElementById('proofArg');
+  const linesEl=document.getElementById('proofLines');
+  const verdictEl=document.getElementById('proofVerdict');
+  const copyBtn=document.getElementById('proofCopy');
+  const closeBtn=document.getElementById('proofClose');
+  if(!btn||!modal) return;
+  let current=null;   // last rendered proof, used by copy
+
+  const toast=document.createElement('div');
+  toast.className='toast'; toast.textContent='Proof copied';
+  document.body.appendChild(toast);
+  let toastT=null;
+  function flash(){ toast.classList.add('toast--on'); clearTimeout(toastT); toastT=setTimeout(()=>toast.classList.remove('toast--on'),1600); }
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+  function proofText(p){
+    if(!p) return '';
+    return p.lines.map(l=> l.n+'. '+l.formula +
+      (l.kind==='premise' ? '  (Premise)' :
+        '  ('+l.rule + (l.refs.length?(', '+l.refs.join(', ')):'')+')')).join('\n') +
+      '\n\n∴ '+p.verdict + (p.argStr?'   ['+p.argStr+']':'');
+  }
+
+  function renderProof(){
+    const p=buildProof();
+    current=p;
+    if(!p){
+      argEl.textContent='No argument yet.';
+      linesEl.innerHTML='';
+      verdictEl.textContent='';
+      verdictEl.className='proof-view__verdict';
+      return;
+    }
+    argEl.textContent=p.argStr||'';
+    linesEl.innerHTML=p.lines.map(l=>{
+      const cls='proof-view__line'+(l.kind==='step'&&l.isTarget?' proof-view__line--target':'')+(l.valid===false?' proof-view__line--bad':'');
+      const ruleCls='proof-view__rule'+(l.valid===false?' proof-view__rule--bad':'');
+      const ruleTxt=l.kind==='premise' ? 'Premise' : (l.rule + (l.refs.length?(', '+l.refs.join(', ')):''));
+      return '<li class="'+cls+'"><span class="proof-view__num">'+l.n+'.</span>'+
+        '<span class="proof-view__f">'+esc(l.formula)+'</span>'+
+        '<span class="'+ruleCls+'">'+esc(ruleTxt)+'</span></li>';
+    }).join('');
+    const v=p.verdict;
+    verdictEl.textContent = '∴ '+v;
+    verdictEl.className='proof-view__verdict proof-view__verdict--'+(v==='valid'?'valid':'invalid');
+  }
+
+  const set=(open)=>{
+    modal.hidden=!open; modal.setAttribute('aria-hidden',open?'false':'true');
+    btn.setAttribute('aria-expanded',open?'true':'false');
+    if(open){ renderProof(); setTimeout(()=>closeBtn.focus(),0); }
+  };
+  btn.addEventListener('click',(e)=>{ e.stopPropagation(); set(modal.hidden); });
+  closeBtn.addEventListener('click',(e)=>{ e.stopPropagation(); set(false); });
+  modal.addEventListener('click',(e)=>e.stopPropagation());
+  document.addEventListener('click',(e)=>{ if(!modal.hidden && !modal.contains(e.target) && e.target!==btn && !btn.contains(e.target)) set(false); });
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && !modal.hidden) set(false); });
+
+  copyBtn.addEventListener('click',async ()=>{
+    const txt=proofText(current);
+    try{ await navigator.clipboard.writeText(txt); }
+    catch(e){
+      const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); }catch(e2){} ta.remove();
+    }
+    flash();
+  });
+})();
+
 
 // boot: a URL hash wins (shareable link); otherwise restore saved work, else the example
 {
@@ -1905,7 +2077,7 @@ if (location.protocol==='file:') window.__argBuilder={ state,
   render(){ render(); },
   reset(){ localStorage.removeItem(STORE_KEY); loadExample('rain'); } };
 // test hook: expose logic internals for unit checks (file: only)
-if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, dpll, evalAst, varsOf, evaluateStep, classifyFormula, detectPattern };
+if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfClauses, dpll, evalAst, varsOf, evaluateStep, classifyFormula, detectPattern, buildProof };
 
 // ---- custom tooltips (data-tip) ----
 (function(){

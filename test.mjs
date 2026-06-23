@@ -740,6 +740,99 @@ try {
   const errText = await page.evaluate(()=>document.querySelector('.block__err')?.textContent.trim() || '');
   check('normal blur still shows parse error (feature intact)', /Unexpected end/i.test(errText), `err="${errText}"`);
 
+  // helper: seed blocks + entails wires directly into state (no UI lasso),
+  // mirroring how the DPLL large-argument tests set up arguments.
+  const seed = async (spec) => page.evaluate((sp) => {
+    const s = window.__argBuilder.state;
+    s.blocks = []; s.wires = []; s.nextId = 1; s.selectedStep = null;
+    // premises: [{label}] ; steps: [{label, from:[labels]}] ; optional select: label
+    const labelToId = {};
+    for (const p of sp.premises) {
+      const id = s.nextId++; s.blocks.push({ id, label: p.label, x: 0, y: 0 }); labelToId[p.label] = id;
+    }
+    for (const st of sp.steps) {
+      const id = s.nextId++; s.blocks.push({ id, label: st.label, x: 0, y: 0 }); labelToId[st.label] = id;
+    }
+    for (const st of sp.steps) {
+      const to = labelToId[st.label];
+      for (const f of st.from) {
+        s.wires.push({ id: 'w' + (s.nextId++), from: labelToId[f], to, type: 'entails' });
+      }
+    }
+    if (sp.select) s.selectedStep = labelToId[sp.select];
+    window.__argBuilder.render();
+  }, spec);
+
+  // ---- TEST 22: view-as-proof readout (single step) ----
+  console.log('\n=== Test 22: view-as-proof readout ===');
+  {
+    // p, p → q ⊨ q   (Modus Ponens)
+    await seed({
+      premises: [{ label: 'p' }, { label: 'p → q' }],
+      steps: [{ label: 'q', from: ['p', 'p → q'] }],
+    });
+    await page.waitForTimeout(150);
+
+    // proof trigger only appears once there is an argument
+    const idleHidden = await page.evaluate(()=>document.getElementById('proofViewBtn').hidden);
+    check('proof trigger visible now an argument exists', idleHidden === false, `hidden=${idleHidden}`);
+
+    // open validity panel then View as proof
+    await page.click('#validityFab'); await page.waitForTimeout(150);
+    await page.click('#proofViewBtn'); await page.waitForTimeout(200);
+    const proofOpen = await page.evaluate(()=>!document.getElementById('proofView').hidden);
+    check('proof modal opens', proofOpen);
+    const lines = await page.evaluate(()=>[...document.querySelectorAll('#proofLines .proof-view__line')].map(li=>li.textContent.replace(/\s+/g,' ').trim()));
+    check('proof shows 3 lines', lines.length===3, `got ${lines.length}: ${JSON.stringify(lines)}`);
+    check('line 1 is premise p', lines[0]==='1.pPremise', lines[0]);
+    check('line 2 is premise p → q', lines[1]==='2.p → qPremise', lines[1]);
+    const all = lines.join(' | ');
+    check('derived line cites Modus Ponens, 1, 2', /Modus Ponens, 1, 2/.test(all), all);
+    check('conclusion q appears as a derived step', /3\.q\s*Modus Ponens/.test(all), all);
+    const verdict = await page.evaluate(()=>document.getElementById('proofVerdict').textContent.replace(/\s+/g,' ').trim());
+    check('verdict is valid', /valid/i.test(verdict) && !/invalid/i.test(verdict), verdict);
+    // buildProof (engine-level) exposes rule + refs + verdict
+    const proofText = await page.evaluate(()=>window.__logic.buildProof());
+    check('buildProof exposes rule + refs + verdict', proofText.verdict==='valid' && proofText.lines[2].rule==='Modus Ponens' && JSON.stringify(proofText.lines[2].refs)==='[1,2]', JSON.stringify(proofText.lines[2]));
+    // read-only: buildProof did not change state (still 3 blocks, 2 wires)
+    const st = await page.evaluate(()=>{ const s=window.__argBuilder.state; return {blocks:s.blocks.length, wires:s.wires.filter(w=>w.type==='entails').length}; });
+    check('proof is read-only (state untouched)', st.blocks===3 && st.wires===2, JSON.stringify(st));
+    // Esc closes
+    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+    check('Esc closes proof modal', await page.evaluate(()=>document.getElementById('proofView').hidden));
+    await page.click('#validityFab'); await page.waitForTimeout(100); // close validity panel
+  }
+
+  // ---- TEST 23: view-as-proof readout (multi-step chain) ----
+  console.log('\n=== Test 23: view-as-proof multi-step chain ===');
+  {
+    // A, A→B ⊨ B ; B, B→C ⊨ C   (chained Modus Ponens)
+    // select C so the proof targets the final conclusion and walks both steps
+    await seed({
+      premises: [{ label: 'A' }, { label: 'A → B' }, { label: 'B → C' }],
+      steps: [
+        { label: 'B', from: ['A', 'A → B'] },
+        { label: 'C', from: ['B', 'B → C'] },
+      ],
+      select: 'C',
+    });
+    await page.waitForTimeout(150);
+
+    await page.click('#validityFab'); await page.waitForTimeout(150);
+    await page.click('#proofViewBtn'); await page.waitForTimeout(200);
+    const lines = await page.evaluate(()=>[...document.querySelectorAll('#proofLines .proof-view__line')].map(li=>li.textContent.replace(/\s+/g,' ').trim()));
+    const all = lines.join(' | ');
+    // 3 premises + 2 derived steps = 5 lines
+    check('chain proof shows 5 lines (3 premises + 2 steps)', lines.length===5, `got ${lines.length}: ${JSON.stringify(lines)}`);
+    check('premises A, A→B, B→C appear first', lines.slice(0,3).every(l=>/Premise$/.test(l)), all);
+    check('derived B cites Modus Ponens referencing earlier lines', /B\s*Modus Ponens, \d+, \d+/.test(all), all);
+    check('derived C (target) cites Modus Ponens', /C\s*Modus Ponens, \d+, \d+/.test(all), all);
+    check('line numbers are contiguous 1..N', lines.every((l,i)=> new RegExp('^'+(i+1)+'\\.').test(l)), all);
+    const verdict = await page.evaluate(()=>document.getElementById('proofVerdict').textContent.replace(/\s+/g,' ').trim());
+    check('chain verdict is valid', /valid/i.test(verdict) && !/invalid/i.test(verdict), verdict);
+    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  }
+
   await page.screenshot({ path:'test-final.png' });
 } finally {
   await browser.close();
