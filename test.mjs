@@ -914,6 +914,75 @@ try {
     check('valid step keeps the green arrowhead', backGood === 'url(#arrowEntails)', backGood);
   }
 
+  // ---- TEST 27: the entailment wire carries the step ------------------
+  console.log('\n=== Test 27: entailment wire ===');
+  {
+    await page.evaluate(()=>window.__argBuilder.reset());
+    await page.waitForTimeout(300);
+    const wire = () => page.evaluate(()=>{
+      const vis=document.querySelector('svg > path[marker-end]');
+      const halo=document.querySelector('svg rect.halo');
+      const g=document.querySelector('g.wire-sym');
+      const d=vis.getAttribute('d').match(/M([\d.-]+),([\d.-]+)\s+Q[\d.,-]+\s+([\d.-]+),([\d.-]+)/).map(Number);
+      return {
+        tone: vis.getAttribute('class'),
+        marker: vis.getAttribute('marker-end'),
+        haloClass: halo ? halo.getAttribute('class') : null,
+        mark: g ? g.getAttribute('class') : null,
+        slashes: g ? g.querySelectorAll('path').length : 0,
+        glow: document.querySelectorAll('.wire-glow').length,
+        del: document.querySelectorAll('.wire-del').length,
+        len: Math.round(Math.hypot(d[3]-d[1], d[4]-d[2])),
+      };
+    });
+
+    const ok = await wire();
+    check('valid step: wire, halo and mark all read sound',
+      /wire--sound/.test(ok.tone) && /halo--sound/.test(ok.haloClass) && /wire-sym--sound/.test(ok.mark), JSON.stringify(ok));
+    check('valid step draws ⊨ (stem + bars, no slash)', ok.slashes === 4, `path count ${ok.slashes}`);
+
+    // Affirming the Consequent — the same three parts must all turn
+    await page.click('#examplesBtn'); await page.waitForTimeout(200);
+    await page.click('.examples-menu__item[data-ex="witch"]'); await page.waitForTimeout(400);
+    const bad = await wire();
+    check('invalid step: wire, halo and mark all read unsound',
+      /wire--unsound/.test(bad.tone) && /halo--unsound/.test(bad.haloClass) && /wire-sym--unsound/.test(bad.mark), JSON.stringify(bad));
+    check('invalid step draws ⊭ (the slash is added)', bad.slashes === 6, `path count ${bad.slashes}`);
+    check('invalid step gets the red arrowhead', /arrowEntailsBad/.test(bad.marker), bad.marker);
+
+    // an unparseable premise must not leave the step looking valid
+    await page.evaluate(()=>window.__argBuilder.reset());
+    await page.waitForTimeout(300);
+    await page.evaluate(()=>{
+      const i=[...document.querySelectorAll('.block__input')].find(x=>x.value.trim()==='p');
+      i.value='p ∧'; i.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    await page.waitForTimeout(400);
+    const idle = await wire();
+    check('undecidable step is neutral, not green',
+      /wire--idle/.test(idle.tone) && /arrowEntailsIdle/.test(idle.marker), JSON.stringify(idle));
+
+    // selection: a casing under the wire, and the mark gives way to delete
+    await page.evaluate(()=>window.__argBuilder.reset());
+    await page.waitForTimeout(300);
+    const before = await wire();
+    check('unselected wire has no casing and no delete control', before.glow===0 && before.del===0, JSON.stringify(before));
+    await page.evaluate(()=>document.querySelector('svg > path.hit').dispatchEvent(new MouseEvent('click',{bubbles:true})));
+    await page.waitForTimeout(250);
+    const sel = await wire();
+    check('selected wire gains a casing', sel.glow===1, JSON.stringify(sel));
+    check('selected wire swaps the mark for delete', sel.mark===null && sel.del===1, JSON.stringify(sel));
+    await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+
+    // the mark drops out when the wire is too short to host it
+    await page.evaluate(()=>window.__argBuilder.moveBlock('q', 150, 20));
+    await page.waitForTimeout(300);
+    const short = await wire();
+    check('short wire drops the mark rather than crowding it', short.len < 88 && short.mark===null, JSON.stringify(short));
+    await page.evaluate(()=>window.__argBuilder.reset());
+    await page.waitForTimeout(300);
+  }
+
   await page.screenshot({ path:'test-final.png' });
 } finally {
   await browser.close();

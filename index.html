@@ -84,6 +84,7 @@
   --accent:#5850ec;
   --accent-deep:#4840d8;
   --accent-tint:#5850ec14;
+  --accent-soft:#5850ec2e;
   --accent-edge:#5850ec59;
   --link:var(--accent);        /* legacy alias */
   --link-deep:var(--accent-deep);
@@ -164,6 +165,7 @@
   --accent:#8b85ff;
   --accent-deep:#a29dff;
   --accent-tint:#8b85ff1f;
+  --accent-soft:#8b85ff3d;
   --accent-edge:#8b85ff66;
 
   --valid:#3ecf95;
@@ -415,13 +417,41 @@ body{
 .block__close:hover{color:var(--invalid);background:var(--invalid-tint);border-color:transparent}
 .block__actions{display:flex;gap:0.3rem;flex-wrap:wrap;padding:0.45rem 0.6rem;border-top:0.0625rem solid var(--line);background:var(--sunken)}
 
-/* wire delete nub */
+/* ---------- the entailment wire ---------- */
+.wires .wire{transition:stroke-width var(--dur) var(--ease)}
+.wires .hit:hover + .wire{stroke-width:0.26rem}
+.wires .wire-glow{stroke:var(--accent-soft);stroke-linecap:round;fill:none}
+
+/* halo: the premise cluster that jointly entails one conclusion. It carries the
+   step's own verdict, so indigo is left to mean "selected" and nothing else. */
+.halo{stroke-width:0.115rem;stroke-dasharray:0.4rem 0.3rem}
+.halo{fill:none}
+.halo--sound{stroke:var(--valid-edge)}
+.halo--unsound{stroke:var(--invalid-edge)}
+.halo--idle{stroke:var(--line-strong)}
+
+/* The turnstile rides the wire itself: ⊨ / ⊭ is the notation the panels already
+   use, and its shape carries the verdict where colour alone would not. It is
+   drawn as paths rather than set as text — U+22AD is missing from a lot of
+   monospace faces, and a tofu box here would cost the whole cue. */
+.wire-sym{pointer-events:none}
+.wire-sym__bg{fill:none;stroke:var(--canvas);stroke-width:5;stroke-linecap:round}
+.wire-sym__mark{fill:none;stroke-width:1.7;stroke-linecap:round}
+.wire-sym--sound .wire-sym__mark{stroke:var(--valid)}
+.wire-sym--unsound .wire-sym__mark{stroke:var(--invalid)}
+.wire-sym--idle .wire-sym__mark{stroke:var(--faint)}
+
+/* delete control, shown at the midpoint in place of the mark while selected.
+   Neutral until aimed at — selecting a step is not itself a destructive act. */
 .wire-del{
   position:absolute;transform:translate(-50%,-50%);z-index:4;
-  background:var(--invalid);color:#fff;border:0;border-radius:var(--r-pill);
-  width:1.25rem;height:1.25rem;cursor:pointer;
-  display:grid;place-items:center;box-shadow:var(--sh1);
+  width:1.3rem;height:1.3rem;padding:0;border-radius:var(--r-pill);
+  border:0.0625rem solid var(--line-strong);
+  background:var(--content);color:var(--mute);cursor:pointer;display:grid;place-items:center;
+  box-shadow:var(--sh1);
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease),border-color var(--dur) var(--ease);
 }
+.wire-del:hover{background:var(--invalid);border-color:var(--invalid);color:#fff}
 .wire-del .icon{width:0.7rem;height:0.7rem;stroke-width:2.5}
 
 /* ---------- truth tables ---------- */
@@ -728,11 +758,14 @@ body{
   <div class="canvas" id="canvas">
     <svg class="wires" id="wires">
       <defs>
-        <marker id="arrowEntails" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" fill="var(--valid)"></path>
+        <marker id="arrowEntails" viewBox="0 0 10 10" refX="3.9" refY="5" overflow="visible" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse">
+          <path d="M0.4,1 L9.6,5 L0.4,9 L3,5 z" fill="var(--valid)"></path>
         </marker>
-        <marker id="arrowEntailsBad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" fill="var(--invalid)"></path>
+        <marker id="arrowEntailsBad" viewBox="0 0 10 10" refX="3.9" refY="5" overflow="visible" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse">
+          <path d="M0.4,1 L9.6,5 L0.4,9 L3,5 z" fill="var(--invalid)"></path>
+        </marker>
+        <marker id="arrowEntailsIdle" viewBox="0 0 10 10" refX="3.9" refY="5" overflow="visible" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse">
+          <path d="M0.4,1 L9.6,5 L0.4,9 L3,5 z" fill="var(--faint)"></path>
         </marker>
       </defs>
     </svg>
@@ -1183,6 +1216,9 @@ function renderSoft(){
     else renderBlockTruth(b);
   });
   renderVerdict();
+  // the wire carries the step's verdict now, so it has to keep up with typing —
+  // and block heights shift as truth tables appear, moving the endpoints anyway
+  renderWires();
 }
 function toggleTable(id){
   state.expanded.has(id)?state.expanded.delete(id):state.expanded.add(id);
@@ -1806,10 +1842,35 @@ function rectEdge(halo,target){
   const s=Math.max(Math.abs(dx)/hw, Math.abs(dy)/hh);
   return {x:halo.cx+dx/s, y:halo.cy+dy/s};
 }
+// ⊨ (and ⊭ when the step fails) drawn as paths: a stem with two bars, plus a
+// stroke through it for the negated form. Two passes — a canvas-coloured one
+// underneath so the wire reads as passing behind the mark, then the mark.
+const TURNSTILE_STEM='M-4.5,-5.5 L-4.5,5.5';
+const TURNSTILE_BARS='M-2,-2 L5,-2 M-2,2 L5,2';
+const TURNSTILE_SLASH='M4,-7 L-3.5,7';
+function turnstile(at, tone){
+  const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.setAttribute('class','wire-sym wire-sym--'+tone);
+  g.setAttribute('transform','translate('+at.x+','+at.y+') scale(1.35)');
+  const ds=[TURNSTILE_STEM,TURNSTILE_BARS];
+  if(tone==='unsound') ds.push(TURNSTILE_SLASH);
+  ['wire-sym__bg','wire-sym__mark'].forEach(cls=>{
+    ds.forEach(d=>{
+      const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+      p.setAttribute('class',cls); p.setAttribute('d',d);
+      g.appendChild(p);
+    });
+  });
+  return g;
+}
 function renderWires(){
   // remove old paths + halos (keep marker defs); nubs live in the canvas, not the svg
-  [...wiresSvg.querySelectorAll(':scope > path, :scope > rect.halo, defs > linearGradient')].forEach(n=>n.remove());
+  [...wiresSvg.querySelectorAll(':scope > path, :scope > rect.halo, :scope > g.wire-sym, defs > linearGradient')].forEach(n=>n.remove());
   [...canvas.querySelectorAll('.wire-del')].forEach(n=>n.remove());
+  // 'sound' = the step holds, 'unsound' = a counterexample exists,
+  // 'idle' = it cannot be judged yet (parse error, broken step)
+  const toneOf=(cid)=>{ const r=evaluateStep(cid); return r.state!=='eval' ? 'idle' : (r.valid?'sound':'unsound'); };
+  const tones=new Map(stepConclusions().map(cid=>[cid,toneOf(cid)]));
   // use pre-transform box (offsetWidth/Height) so wires/halos are zoom-independent
   const center=(id)=>{const el=canvas.querySelector('.block[data-id="'+id+'"]'); const b=B(id); if(!el||!b) return null;
     return {x:b.x+el.offsetWidth/2, y:b.y+el.offsetHeight/2};};
@@ -1834,12 +1895,7 @@ function renderWires(){
     rect.setAttribute('x',halo.x); rect.setAttribute('y',halo.y);
     rect.setAttribute('width',halo.w); rect.setAttribute('height',halo.h);
     rect.setAttribute('rx','16'); rect.setAttribute('ry','16');
-    rect.setAttribute('fill','none');
-    rect.setAttribute('stroke','var(--accent)');
-    rect.setAttribute('stroke-width','0.12rem');
-    rect.setAttribute('stroke-dasharray','0.35rem 0.28rem');
-    rect.setAttribute('opacity','0.55');
-    rect.classList.add('halo');
+    rect.classList.add('halo','halo--'+(tones.get(cid)||'idle'));
     wiresSvg.appendChild(rect);
     halos.set(cid,halo);
   });
@@ -1858,7 +1914,7 @@ function renderWires(){
     // (a) terminate at the conclusion border along the ray from conclusion-center toward source, then back off 6px
     let b=rectEdge(conclRect,a);
     const ddx=b.x-a.x, ddy=b.y-a.y, dlen=Math.hypot(ddx,ddy)||1;
-    b={x:b.x-ddx/dlen*6, y:b.y-ddy/dlen*6};
+    b={x:b.x-ddx/dlen*11, y:b.y-ddy/dlen*11};   // the arrowhead reaches forward from here
     // (b) gentle quadratic bezier bowed perpendicular to the line (orientation-agnostic)
     const bow=Math.min(dlen*0.12,28);
     const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
@@ -1874,13 +1930,19 @@ function renderWires(){
     const s0=document.createElementNS('http://www.w3.org/2000/svg','stop');
     s0.setAttribute('offset','0'); s0.setAttribute('style','stop-color:var(--muted)');
     // the wire carries the step's verdict, so a red frame is never fed by a green arrow
-    const wr=evaluateStep(cid);
-    const bad = wr.state==='eval' && !wr.valid;
+    const tone = tones.get(cid) || 'idle';
+    const toneVar = tone==='sound' ? '--valid' : tone==='unsound' ? '--invalid' : '--faint';
     const s1=document.createElementNS('http://www.w3.org/2000/svg','stop');
-    s1.setAttribute('offset','1'); s1.setAttribute('style','stop-color:var('+(bad?'--invalid':'--valid')+')');
+    s1.setAttribute('offset','1'); s1.setAttribute('style','stop-color:var('+toneVar+')');
     grad.appendChild(s0); grad.appendChild(s1);
     defs.appendChild(grad);
     const isSelected = state.selectedStep===cid;
+    if(isSelected){
+      const glow=document.createElementNS('http://www.w3.org/2000/svg','path');
+      glow.setAttribute('d',d); glow.setAttribute('class','wire-glow');
+      glow.setAttribute('stroke-width','0.55rem');
+      wiresSvg.appendChild(glow);
+    }
     // hit area (clickable) — reuses same d
     const hit=document.createElementNS('http://www.w3.org/2000/svg','path');
     hit.setAttribute('d',d); hit.setAttribute('class','hit');
@@ -1891,19 +1953,22 @@ function renderWires(){
     const vis=document.createElementNS('http://www.w3.org/2000/svg','path');
     vis.setAttribute('d',d);
     vis.setAttribute('stroke','url(#'+gid+')');
-    vis.setAttribute('stroke-width', isSelected?'0.32rem':'0.17rem');
+    vis.setAttribute('stroke-width', isSelected?'0.21rem':'0.17rem');
     vis.setAttribute('fill','none');
-    vis.setAttribute('marker-end', bad ? 'url(#arrowEntailsBad)' : 'url(#arrowEntails)');
+    vis.setAttribute('class','wire wire--'+tone);
+    vis.setAttribute('marker-end','url(#'+(tone==='unsound'?'arrowEntailsBad':tone==='idle'?'arrowEntailsIdle':'arrowEntails')+')');
     wiresSvg.appendChild(vis);
-    // delete nub if selected, placed on the curve at t=0.5
+    // midpoint of the curve: the turnstile normally, the delete control while selected
+    const mid={x:0.25*a.x+0.5*ctrlx+0.25*b.x, y:0.25*a.y+0.5*ctrly+0.25*b.y};
     if(isSelected){
-      const mid={x:0.25*a.x+0.5*ctrlx+0.25*b.x, y:0.25*a.y+0.5*ctrly+0.25*b.y};
       const btn=document.createElement('button');
-      btn.className='wire-del'; btn.title='Delete this step'; btn.setAttribute('aria-label','Delete this step');
+      btn.className='wire-del'; btn.setAttribute('data-tip','Delete this step'); btn.setAttribute('aria-label','Delete this step');
       btn.innerHTML='<svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>';
       btn.style.left=mid.x+'px'; btn.style.top=mid.y+'px';
       btn.addEventListener('click',(e)=>{e.stopPropagation();deleteStep(cid);});
       canvas.appendChild(btn);
+    }else if(dlen>=88){        // too short a wire has no room for a legible mark
+      wiresSvg.appendChild(turnstile(mid, tone));
     }
   });
 }
@@ -2336,7 +2401,7 @@ function loadExample(key){
   state.panX=0;state.panY=0;state.zoom=1;
   state.premises=ex.premises.map(p=>({symbol:p.symbol,description:p.description}));
   // place blocks at fixed relative coords (premise stack | conclusion)
-  const px=0, conclX=320;
+  const px=0, conclX=420;
   const premiseCount=ex.blocks.length-1;
   let pIdx=0;
   const ids=ex.blocks.map((lbl,i)=>{

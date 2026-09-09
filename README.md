@@ -12,6 +12,12 @@ Open `index.html` in a browser. Single file, vanilla JS, no build step.
 
 A concluded block can itself be a premise in the next step, so chains compose: `{A, A→B} ⊨ B`, then `{B, B→C} ⊨ C`, and so on.
 
+## Reading a step on the canvas
+
+Each step is drawn as one unit: a dashed bracket around the premises it draws on, a wire into the conclusion, and the turnstile riding that wire. All three carry the step's own verdict — **⊨ green** when it holds, **⊭ red** when a counterexample exists, and neutral grey while it cannot be judged (an unparseable formula upstream). The negated turnstile means the verdict never rests on colour alone.
+
+Click a wire to select the step: it gains a casing, and the turnstile gives way to a delete control (`Delete` also removes the selected step). On a wire too short to host the mark legibly, the mark drops out rather than crowding the line.
+
 ## Check validity
 
 The verdict comes from a **DPLL SAT solver**, not enumeration. An argument is valid iff `premises ∧ ¬conclusion` is UNSAT; a satisfying model (when one exists) is a counterexample. This scales to any number of variables (the old truth-table engine misreported valid for `n>20`; DPLL fixes that).
@@ -40,7 +46,7 @@ Toggle buttons sit anchored above the panels they control:
 
 Light and dark themes. The toolbar toggle switches between them and remembers the choice in `localStorage`; with no choice saved the app follows the OS setting and tracks changes to it live. The theme is resolved before first paint, so a dark-mode reload never flashes white.
 
-Colour carries meaning consistently: the interface accent (indigo) is never a verdict, **green means the step holds**, **red means a counterexample exists**. A derived block's frame, header and incoming wire all take the colour of its own verdict — an invalid step is red end to end, never a green frame around a false conclusion.
+Colour carries meaning consistently: the interface accent (indigo) is never a verdict, **green means the step holds**, **red means a counterexample exists**. A derived block's frame, header, premise bracket and incoming wire all take the colour of its own verdict — an invalid step is red end to end, never a green frame around a false conclusion. Indigo is left to mean "selected", and nothing else.
 
 ## Share
 
@@ -74,7 +80,7 @@ npx playwright install chrome   # real Chrome channel; bundled Chromium renders 
 node test.mjs
 ```
 
-140 Playwright tests (run headlessly against `file://`) cover: DPLL validity at scale, pattern and fallacy detection, multi-step chain propagation, the cycle guard, persistence, shareable URLs, the proof readout, ARIA autocomplete, render re-entrancy, theme persistence, and verdict-coloured blocks. Tests seed app state directly through `window.__argBuilder` / `window.__logic` hooks for determinism.
+150 Playwright tests (run headlessly against `file://`) cover: DPLL validity at scale, pattern and fallacy detection, multi-step chain propagation, the cycle guard, persistence, shareable URLs, the proof readout, ARIA autocomplete, render re-entrancy, theme persistence, and the verdict-coloured blocks and wires. Tests seed app state directly through `window.__argBuilder` / `window.__logic` hooks for determinism.
 
 ## Tech
 
