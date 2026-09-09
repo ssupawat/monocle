@@ -16,7 +16,9 @@ A concluded block can itself be a premise in the next step, so chains compose: `
 
 Each step is drawn as one unit: a dashed bracket around the premises it draws on, a wire into the conclusion, and the turnstile riding that wire. All three carry the step's own verdict — **⊨ green** when it holds, **⊭ red** when a counterexample exists, and neutral grey while it cannot be judged (an unparseable formula upstream). The negated turnstile means the verdict never rests on colour alone.
 
-Click a wire to select the step: it gains a casing, and the turnstile gives way to a delete control (`Delete` also removes the selected step). On a wire too short to host the mark legibly, the mark drops out rather than crowding the line.
+A step that does not hold is drawn as a link that does not carry: the solid line runs out partway, ⊭ sits in the break, and what continues past it is dashed, faded and ends in a hollow arrowhead that never lands. Where the wire is too short to hold the mark, it stays whole — still dashed, still hollow-tipped — rather than showing an empty gap that would read as a rendering fault.
+
+Click a wire to select the step: it gains a casing, and the turnstile gives way to a delete control that sits in the same place (`Delete` also removes the selected step). Selecting never changes how a verdict is drawn — the casing breaks with the wire, so a severed step stays visibly severed.
 
 ## Check validity
 
@@ -80,7 +82,7 @@ npx playwright install chrome   # real Chrome channel; bundled Chromium renders 
 node test.mjs
 ```
 
-150 Playwright tests (run headlessly against `file://`) cover: DPLL validity at scale, pattern and fallacy detection, multi-step chain propagation, the cycle guard, persistence, shareable URLs, the proof readout, ARIA autocomplete, render re-entrancy, theme persistence, and the verdict-coloured blocks and wires. Tests seed app state directly through `window.__argBuilder` / `window.__logic` hooks for determinism.
+155 Playwright tests (run headlessly against `file://`) cover: DPLL validity at scale, pattern and fallacy detection, multi-step chain propagation, the cycle guard, persistence, shareable URLs, the proof readout, ARIA autocomplete, render re-entrancy, theme persistence, and the verdict-coloured blocks and wires. Tests seed app state directly through `window.__argBuilder` / `window.__logic` hooks for determinism.
 
 ## Tech
 

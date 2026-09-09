@@ -219,9 +219,10 @@ try {
   const haloCount = await page.locator('svg rect.halo').count();
   check('no halo for single premise', haloCount === 0, `got ${haloCount}`);
   const arrowFromBlock = await page.evaluate(() => {
-    const visible=[...document.querySelectorAll('svg > path')].find(p=>p.getAttribute('marker-end'));
-    if(!visible) return null;
-    return visible.getAttribute('d');
+    // the first .wire path starts at the wire's origin whether or not the step
+    // is drawn severed (an unsound step is two pieces, the marker on the far one)
+    const first=document.querySelector('svg > path.wire');
+    return first ? first.getAttribute('d') : null;
   });
   // origin should match p block center (convert viewport→canvas-local)
   const canvasBox = await page.locator('#canvas').boundingBox();
@@ -906,7 +907,7 @@ try {
 
     // and the wire feeding it must not stay green
     const marker = await page.evaluate(()=>document.querySelector('svg > path[marker-end]').getAttribute('marker-end'));
-    check('invalid step gets the red arrowhead', /arrowEntailsBad/.test(marker), marker);
+    check('invalid step gets the hollow arrowhead', /arrowEntailsHollow/.test(marker), marker);
 
     await page.evaluate(()=>window.__argBuilder.reset());
     await page.waitForTimeout(300);
@@ -923,7 +924,8 @@ try {
       const vis=document.querySelector('svg > path[marker-end]');
       const halo=document.querySelector('svg rect.halo');
       const g=document.querySelector('g.wire-sym');
-      const d=vis.getAttribute('d').match(/M([\d.-]+),([\d.-]+)\s+Q[\d.,-]+\s+([\d.-]+),([\d.-]+)/).map(Number);
+      const first=document.querySelector('svg > path.wire');
+      const d=first.getAttribute('d').match(/M([\d.-]+),([\d.-]+)\s+Q[\d.,-]+\s+([\d.-]+),([\d.-]+)/).map(Number);
       return {
         tone: vis.getAttribute('class'),
         marker: vis.getAttribute('marker-end'),
@@ -948,7 +950,41 @@ try {
     check('invalid step: wire, halo and mark all read unsound',
       /wire--unsound/.test(bad.tone) && /halo--unsound/.test(bad.haloClass) && /wire-sym--unsound/.test(bad.mark), JSON.stringify(bad));
     check('invalid step draws ⊭ (the slash is added)', bad.slashes === 6, `path count ${bad.slashes}`);
-    check('invalid step gets the red arrowhead', /arrowEntailsBad/.test(bad.marker), bad.marker);
+    check('invalid step gets the hollow arrowhead', /arrowEntailsHollow/.test(bad.marker), bad.marker);
+
+    // an unsound step is drawn as a link that does not carry
+    const pieces = () => page.evaluate(()=>{
+      const ws=[...document.querySelectorAll('svg > path.wire')];
+      return { n: ws.length,
+               severed: ws.filter(w=>w.classList.contains('wire--severed')).length,
+               markers: ws.map(w=>w.getAttribute('marker-end')).filter(Boolean) };
+    });
+    const cut = await pieces();
+    check('unsound wire breaks into two pieces', cut.n===2 && cut.severed===1, JSON.stringify(cut));
+    check('only the far piece carries the hollow tip',
+      cut.markers.length===1 && /arrowEntailsHollow/.test(cut.markers[0]), JSON.stringify(cut));
+    check('the break is centred on the ⊭', await page.evaluate(()=>{
+      const ws=[...document.querySelectorAll('svg > path.wire')];
+      const end=ws[0].getAttribute('d').match(/([\d.-]+),([\d.-]+)$/).map(Number);
+      const start=ws[1].getAttribute('d').match(/M([\d.-]+),([\d.-]+)/).map(Number);
+      const g=document.querySelector('g.wire-sym').getAttribute('transform').match(/translate\(([\d.-]+),([\d.-]+)\)/).map(Number);
+      const gapMid={x:(end[1]+start[1])/2, y:(end[2]+start[2])/2};
+      return Math.hypot(gapMid.x-g[1], gapMid.y-g[2]) < 6;
+    }), 'the mark should sit in the gap');
+
+    // selecting must not change how the verdict is drawn
+    await page.evaluate(()=>document.querySelector('svg > path.hit').dispatchEvent(new MouseEvent('click',{bubbles:true})));
+    await page.waitForTimeout(250);
+    const cutSel = await pieces();
+    check('selection leaves the break intact', cutSel.n===2 && cutSel.severed===1, JSON.stringify(cutSel));
+    await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+
+    // too short to hold the mark: dashed and hollow, but no confusing empty gap
+    await page.evaluate(()=>window.__argBuilder.moveBlock('p', 150, 20));
+    await page.waitForTimeout(350);
+    const tight = await pieces();
+    check('a short unsound wire stays whole, still dashed and hollow',
+      tight.n===1 && tight.severed===1 && /arrowEntailsHollow/.test(tight.markers[0]), JSON.stringify(tight));
 
     // an unparseable premise must not leave the step looking valid
     await page.evaluate(()=>window.__argBuilder.reset());

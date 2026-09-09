@@ -419,7 +419,11 @@ body{
 
 /* ---------- the entailment wire ---------- */
 .wires .wire{transition:stroke-width var(--dur) var(--ease)}
-.wires .hit:hover + .wire{stroke-width:0.26rem}
+/* an unsound step is drawn in two pieces, so hover has to reach both */
+.wires .hit:hover + .wire,.wires .hit:hover + .wire + .wire{stroke-width:0.26rem}
+/* what continues past the break: dashed, faded, and hollow-tipped */
+.wire--severed{stroke-dasharray:0.3rem 0.28rem;opacity:.55}
+[data-theme="dark"] .wire--severed{opacity:.68}
 .wires .wire-glow{stroke:var(--accent-soft);stroke-linecap:round;fill:none}
 
 /* halo: the premise cluster that jointly entails one conclusion. It carries the
@@ -761,8 +765,8 @@ body{
         <marker id="arrowEntails" viewBox="0 0 10 10" refX="3.9" refY="5" overflow="visible" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse">
           <path d="M0.4,1 L9.6,5 L0.4,9 L3,5 z" fill="var(--valid)"></path>
         </marker>
-        <marker id="arrowEntailsBad" viewBox="0 0 10 10" refX="3.9" refY="5" overflow="visible" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse">
-          <path d="M0.4,1 L9.6,5 L0.4,9 L3,5 z" fill="var(--invalid)"></path>
+        <marker id="arrowEntailsHollow" viewBox="0 0 10 10" refX="3.9" refY="5" overflow="visible" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse">
+          <path d="M0.4,1 L9.6,5 L0.4,9 L3,5 z" fill="none" stroke="var(--invalid)" stroke-width="1.2" stroke-linejoin="round"></path>
         </marker>
         <marker id="arrowEntailsIdle" viewBox="0 0 10 10" refX="3.9" refY="5" overflow="visible" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse">
           <path d="M0.4,1 L9.6,5 L0.4,9 L3,5 z" fill="var(--faint)"></path>
@@ -1842,6 +1846,12 @@ function rectEdge(halo,target){
   const s=Math.max(Math.abs(dx)/hw, Math.abs(dy)/hh);
   return {x:halo.cx+dx/s, y:halo.cy+dy/s};
 }
+// de Casteljau split of a quadratic at t: the halves either side of the cut
+function splitQuad(P0,P1,P2,t){
+  const lerp=(p,q,k)=>({x:p.x+(q.x-p.x)*k, y:p.y+(q.y-p.y)*k});
+  const q0=lerp(P0,P1,t), q1=lerp(P1,P2,t);
+  return {q0, q1, at:lerp(q0,q1,t)};
+}
 // ⊨ (and ⊭ when the step fails) drawn as paths: a stem with two bars, plus a
 // stroke through it for the negated form. Two passes — a canvas-coloured one
 // underneath so the wire reads as passing behind the mark, then the mark.
@@ -1937,27 +1947,44 @@ function renderWires(){
     grad.appendChild(s0); grad.appendChild(s1);
     defs.appendChild(grad);
     const isSelected = state.selectedStep===cid;
-    if(isSelected){
+    // An unsound step is drawn as a link that does not carry: the solid line runs
+    // out, and what continues past the break is dashed and hollow-tipped. The
+    // break only opens where the ⊭ can sit in it — a gap with nothing in it reads
+    // as a rendering fault rather than a verdict.
+    const P0=a, P1={x:ctrlx,y:ctrly}, P2=b;
+    const severed = tone==='unsound' && dlen>=88;
+    let segs=[d];
+    if(severed){
+      const s1=splitQuad(P0,P1,P2,0.36), s2=splitQuad(P0,P1,P2,0.64);
+      segs=['M'+P0.x+','+P0.y+' Q'+s1.q0.x+','+s1.q0.y+' '+s1.at.x+','+s1.at.y,
+            'M'+s2.at.x+','+s2.at.y+' Q'+s2.q1.x+','+s2.q1.y+' '+P2.x+','+P2.y];
+    }
+    if(isSelected) segs.forEach(sd=>{
       const glow=document.createElementNS('http://www.w3.org/2000/svg','path');
-      glow.setAttribute('d',d); glow.setAttribute('class','wire-glow');
+      glow.setAttribute('d',sd); glow.setAttribute('class','wire-glow');
       glow.setAttribute('stroke-width','0.55rem');
       wiresSvg.appendChild(glow);
-    }
+    });
     // hit area (clickable) — reuses same d
     const hit=document.createElementNS('http://www.w3.org/2000/svg','path');
     hit.setAttribute('d',d); hit.setAttribute('class','hit');
     hit.setAttribute('stroke','transparent'); hit.setAttribute('stroke-width','16'); hit.setAttribute('fill','none');
     hit.addEventListener('click',(e)=>{e.stopPropagation(); state.selectedStep=cid; render(); });
     wiresSvg.appendChild(hit);
-    // visible
-    const vis=document.createElementNS('http://www.w3.org/2000/svg','path');
-    vis.setAttribute('d',d);
-    vis.setAttribute('stroke','url(#'+gid+')');
-    vis.setAttribute('stroke-width', isSelected?'0.21rem':'0.17rem');
-    vis.setAttribute('fill','none');
-    vis.setAttribute('class','wire wire--'+tone);
-    vis.setAttribute('marker-end','url(#'+(tone==='unsound'?'arrowEntailsBad':tone==='idle'?'arrowEntailsIdle':'arrowEntails')+')');
-    wiresSvg.appendChild(vis);
+    // visible: the last segment carries the arrowhead, the rest just run
+    const sw = isSelected?'0.21rem':'0.17rem';
+    const head = tone==='unsound' ? 'arrowEntailsHollow' : tone==='idle' ? 'arrowEntailsIdle' : 'arrowEntails';
+    segs.forEach((sd,i)=>{
+      const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+      p.setAttribute('d',sd); p.setAttribute('stroke','url(#'+gid+')');
+      p.setAttribute('stroke-width',sw); p.setAttribute('fill','none');
+      p.setAttribute('stroke-linecap','round');
+      const last = i===segs.length-1;
+      // only the piece past the break is dashed; the near piece runs out solid
+      p.setAttribute('class','wire wire--'+tone+((tone==='unsound'&&(last||!severed))?' wire--severed':''));
+      if(last) p.setAttribute('marker-end','url(#'+head+')');
+      wiresSvg.appendChild(p);
+    });
     // midpoint of the curve: the turnstile normally, the delete control while selected
     const mid={x:0.25*a.x+0.5*ctrlx+0.25*b.x, y:0.25*a.y+0.5*ctrly+0.25*b.y};
     if(isSelected){
