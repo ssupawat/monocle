@@ -833,6 +833,87 @@ try {
     await page.keyboard.press('Escape'); await page.waitForTimeout(150);
   }
 
+
+  // ---- TEST 24: theme toggle ------------------------------------------
+  console.log('\n=== Test 24: theme ===');
+  {
+    const themeOf = () => page.evaluate(()=>document.documentElement.getAttribute('data-theme'));
+    const start = await themeOf();
+    check('a theme is resolved before paint', start==='light'||start==='dark', String(start));
+
+    await page.click('#themeBtn'); await page.waitForTimeout(150);
+    const flipped = await themeOf();
+    check('toggle flips the theme', flipped !== start && (flipped==='light'||flipped==='dark'), `${start} -> ${flipped}`);
+    check('choice is persisted', await page.evaluate(()=>localStorage.getItem('monocle.theme')) === flipped, flipped);
+    check('toggle label names the next theme',
+      await page.evaluate(()=>document.getElementById('themeBtn').getAttribute('data-tip')) === `Switch to ${start}`,
+      await page.evaluate(()=>document.getElementById('themeBtn').getAttribute('data-tip')));
+
+    // the saved choice must survive a reload, and must not flash the other theme
+    await page.reload(); await page.waitForTimeout(400);
+    check('theme survives reload', await themeOf() === flipped, String(await themeOf()));
+
+    // tokens actually repaint: canvas background differs between themes
+    const bgOf = () => page.evaluate(()=>getComputedStyle(document.body).backgroundColor);
+    const bgA = await bgOf();
+    await page.click('#themeBtn'); await page.waitForTimeout(200);
+    const bgB = await bgOf();
+    check('themes paint different backgrounds', bgA !== bgB, `${bgA} vs ${bgB}`);
+
+    await page.evaluate(()=>localStorage.removeItem('monocle.theme'));
+  }
+
+  // ---- TEST 25: icons are self-contained (no webfont) -------------------
+  console.log('\n=== Test 25: inline SVG icons ===');
+  {
+    check('no icon webfont is requested',
+      await page.evaluate(()=>!document.querySelector('link[href*="Material+Icons"]')), 'Material Icons link still present');
+    check('no .material-icons nodes remain',
+      await page.evaluate(()=>document.querySelectorAll('.material-icons').length===0),
+      String(await page.evaluate(()=>document.querySelectorAll('.material-icons').length)));
+    const broken = await page.evaluate(()=>{
+      const ids = new Set([...document.querySelectorAll('svg.sprite symbol')].map(s=>s.id));
+      return [...document.querySelectorAll('use')]
+        .map(u=>(u.getAttribute('href')||'').replace('#',''))
+        .filter(id=>!ids.has(id));
+    });
+    check('every <use> resolves to a sprite symbol', broken.length===0, `unresolved: ${JSON.stringify(broken)}`);
+    const sized = await page.evaluate(()=>{
+      const r = document.querySelector('#addBtn .icon').getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height) };
+    });
+    check('icons have real layout size', sized.w > 8 && sized.h > 8, JSON.stringify(sized));
+  }
+
+  // ---- TEST 26: a derived block is framed by its verdict ----------------
+  console.log('\n=== Test 26: verdict-coloured derived block ===');
+  {
+    // Modus Ponens: {p, p→q} ⊨ q — the step holds
+    await page.evaluate(()=>window.__argBuilder.reset());
+    await page.waitForTimeout(300);
+    const cls = () => page.evaluate(()=>{
+      const el=[...document.querySelectorAll('.block')].find(b=>b.classList.contains('block--conclusion'));
+      return el ? el.className : '(no derived block)';
+    });
+    const good = await cls();
+    check('valid step is framed sound', /block--sound/.test(good) && !/block--unsound/.test(good), good);
+
+    // Affirming the Consequent: {p→q, q} ⊭ p — the step does not hold
+    await page.click('#examplesBtn'); await page.waitForTimeout(200);
+    await page.click('.examples-menu__item[data-ex="witch"]'); await page.waitForTimeout(400);
+    const bad = await cls();
+    check('invalid step is framed unsound', /block--unsound/.test(bad) && !/block--sound/.test(bad), bad);
+
+    // and the wire feeding it must not stay green
+    const marker = await page.evaluate(()=>document.querySelector('svg > path[marker-end]').getAttribute('marker-end'));
+    check('invalid step gets the red arrowhead', /arrowEntailsBad/.test(marker), marker);
+
+    await page.evaluate(()=>window.__argBuilder.reset());
+    await page.waitForTimeout(300);
+    const backGood = await page.evaluate(()=>document.querySelector('svg > path[marker-end]').getAttribute('marker-end'));
+    check('valid step keeps the green arrowhead', backGood === 'url(#arrowEntails)', backGood);
+  }
+
   await page.screenshot({ path:'test-final.png' });
 } finally {
   await browser.close();
