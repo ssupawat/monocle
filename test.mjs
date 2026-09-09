@@ -219,9 +219,10 @@ try {
   const haloCount = await page.locator('svg rect.halo').count();
   check('no halo for single premise', haloCount === 0, `got ${haloCount}`);
   const arrowFromBlock = await page.evaluate(() => {
-    const visible=[...document.querySelectorAll('svg > path')].find(p=>p.getAttribute('marker-end'));
-    if(!visible) return null;
-    return visible.getAttribute('d');
+    // the first .wire path starts at the wire's origin whether or not the step
+    // is drawn severed (an unsound step is two pieces, the marker on the far one)
+    const first=document.querySelector('svg > path.wire');
+    return first ? first.getAttribute('d') : null;
   });
   // origin should match p block center (convert viewport→canvas-local)
   const canvasBox = await page.locator('#canvas').boundingBox();
@@ -831,6 +832,191 @@ try {
     const verdict = await page.evaluate(()=>document.getElementById('proofVerdict').textContent.replace(/\s+/g,' ').trim());
     check('chain verdict is valid', /valid/i.test(verdict) && !/invalid/i.test(verdict), verdict);
     await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  }
+
+
+  // ---- TEST 24: theme toggle ------------------------------------------
+  console.log('\n=== Test 24: theme ===');
+  {
+    const themeOf = () => page.evaluate(()=>document.documentElement.getAttribute('data-theme'));
+    const start = await themeOf();
+    check('a theme is resolved before paint', start==='light'||start==='dark', String(start));
+
+    await page.click('#themeBtn'); await page.waitForTimeout(150);
+    const flipped = await themeOf();
+    check('toggle flips the theme', flipped !== start && (flipped==='light'||flipped==='dark'), `${start} -> ${flipped}`);
+    check('choice is persisted', await page.evaluate(()=>localStorage.getItem('monocle.theme')) === flipped, flipped);
+    check('toggle label names the next theme',
+      await page.evaluate(()=>document.getElementById('themeBtn').getAttribute('data-tip')) === `Switch to ${start}`,
+      await page.evaluate(()=>document.getElementById('themeBtn').getAttribute('data-tip')));
+
+    // the saved choice must survive a reload, and must not flash the other theme
+    await page.reload(); await page.waitForTimeout(400);
+    check('theme survives reload', await themeOf() === flipped, String(await themeOf()));
+
+    // tokens actually repaint: canvas background differs between themes
+    const bgOf = () => page.evaluate(()=>getComputedStyle(document.body).backgroundColor);
+    const bgA = await bgOf();
+    await page.click('#themeBtn'); await page.waitForTimeout(200);
+    const bgB = await bgOf();
+    check('themes paint different backgrounds', bgA !== bgB, `${bgA} vs ${bgB}`);
+
+    await page.evaluate(()=>localStorage.removeItem('monocle.theme'));
+  }
+
+  // ---- TEST 25: icons are self-contained (no webfont) -------------------
+  console.log('\n=== Test 25: inline SVG icons ===');
+  {
+    check('no icon webfont is requested',
+      await page.evaluate(()=>!document.querySelector('link[href*="Material+Icons"]')), 'Material Icons link still present');
+    check('no .material-icons nodes remain',
+      await page.evaluate(()=>document.querySelectorAll('.material-icons').length===0),
+      String(await page.evaluate(()=>document.querySelectorAll('.material-icons').length)));
+    const broken = await page.evaluate(()=>{
+      const ids = new Set([...document.querySelectorAll('svg.sprite symbol')].map(s=>s.id));
+      return [...document.querySelectorAll('use')]
+        .map(u=>(u.getAttribute('href')||'').replace('#',''))
+        .filter(id=>!ids.has(id));
+    });
+    check('every <use> resolves to a sprite symbol', broken.length===0, `unresolved: ${JSON.stringify(broken)}`);
+    const sized = await page.evaluate(()=>{
+      const r = document.querySelector('#addBtn .icon').getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height) };
+    });
+    check('icons have real layout size', sized.w > 8 && sized.h > 8, JSON.stringify(sized));
+  }
+
+  // ---- TEST 26: a derived block is framed by its verdict ----------------
+  console.log('\n=== Test 26: verdict-coloured derived block ===');
+  {
+    // Modus Ponens: {p, p→q} ⊨ q — the step holds
+    await page.evaluate(()=>window.__argBuilder.reset());
+    await page.waitForTimeout(300);
+    const cls = () => page.evaluate(()=>{
+      const el=[...document.querySelectorAll('.block')].find(b=>b.classList.contains('block--conclusion'));
+      return el ? el.className : '(no derived block)';
+    });
+    const good = await cls();
+    check('valid step is framed sound', /block--sound/.test(good) && !/block--unsound/.test(good), good);
+
+    // Affirming the Consequent: {p→q, q} ⊭ p — the step does not hold
+    await page.click('#examplesBtn'); await page.waitForTimeout(200);
+    await page.click('.examples-menu__item[data-ex="witch"]'); await page.waitForTimeout(400);
+    const bad = await cls();
+    check('invalid step is framed unsound', /block--unsound/.test(bad) && !/block--sound/.test(bad), bad);
+
+    // and the wire feeding it must not stay green
+    const marker = await page.evaluate(()=>document.querySelector('svg > path[marker-end]').getAttribute('marker-end'));
+    check('invalid step gets the hollow arrowhead', /arrowEntailsHollow/.test(marker), marker);
+
+    await page.evaluate(()=>window.__argBuilder.reset());
+    await page.waitForTimeout(300);
+    const backGood = await page.evaluate(()=>document.querySelector('svg > path[marker-end]').getAttribute('marker-end'));
+    check('valid step keeps the green arrowhead', backGood === 'url(#arrowEntails)', backGood);
+  }
+
+  // ---- TEST 27: the entailment wire carries the step ------------------
+  console.log('\n=== Test 27: entailment wire ===');
+  {
+    await page.evaluate(()=>window.__argBuilder.reset());
+    await page.waitForTimeout(300);
+    const wire = () => page.evaluate(()=>{
+      const vis=document.querySelector('svg > path[marker-end]');
+      const halo=document.querySelector('svg rect.halo');
+      const g=document.querySelector('g.wire-sym');
+      const first=document.querySelector('svg > path.wire');
+      const d=first.getAttribute('d').match(/M([\d.-]+),([\d.-]+)\s+Q[\d.,-]+\s+([\d.-]+),([\d.-]+)/).map(Number);
+      return {
+        tone: vis.getAttribute('class'),
+        marker: vis.getAttribute('marker-end'),
+        haloClass: halo ? halo.getAttribute('class') : null,
+        mark: g ? g.getAttribute('class') : null,
+        slashes: g ? g.querySelectorAll('path').length : 0,
+        glow: document.querySelectorAll('.wire-glow').length,
+        del: document.querySelectorAll('.wire-del').length,
+        len: Math.round(Math.hypot(d[3]-d[1], d[4]-d[2])),
+      };
+    });
+
+    const ok = await wire();
+    check('valid step: wire, halo and mark all read sound',
+      /wire--sound/.test(ok.tone) && /halo--sound/.test(ok.haloClass) && /wire-sym--sound/.test(ok.mark), JSON.stringify(ok));
+    check('valid step draws ⊨ (stem + bars, no slash)', ok.slashes === 4, `path count ${ok.slashes}`);
+
+    // Affirming the Consequent — the same three parts must all turn
+    await page.click('#examplesBtn'); await page.waitForTimeout(200);
+    await page.click('.examples-menu__item[data-ex="witch"]'); await page.waitForTimeout(400);
+    const bad = await wire();
+    check('invalid step: wire, halo and mark all read unsound',
+      /wire--unsound/.test(bad.tone) && /halo--unsound/.test(bad.haloClass) && /wire-sym--unsound/.test(bad.mark), JSON.stringify(bad));
+    check('invalid step draws ⊭ (the slash is added)', bad.slashes === 6, `path count ${bad.slashes}`);
+    check('invalid step gets the hollow arrowhead', /arrowEntailsHollow/.test(bad.marker), bad.marker);
+
+    // an unsound step is drawn as a link that does not carry
+    const pieces = () => page.evaluate(()=>{
+      const ws=[...document.querySelectorAll('svg > path.wire')];
+      return { n: ws.length,
+               severed: ws.filter(w=>w.classList.contains('wire--severed')).length,
+               markers: ws.map(w=>w.getAttribute('marker-end')).filter(Boolean) };
+    });
+    const cut = await pieces();
+    check('unsound wire breaks into two pieces', cut.n===2 && cut.severed===1, JSON.stringify(cut));
+    check('only the far piece carries the hollow tip',
+      cut.markers.length===1 && /arrowEntailsHollow/.test(cut.markers[0]), JSON.stringify(cut));
+    check('the break is centred on the ⊭', await page.evaluate(()=>{
+      const ws=[...document.querySelectorAll('svg > path.wire')];
+      const end=ws[0].getAttribute('d').match(/([\d.-]+),([\d.-]+)$/).map(Number);
+      const start=ws[1].getAttribute('d').match(/M([\d.-]+),([\d.-]+)/).map(Number);
+      const g=document.querySelector('g.wire-sym').getAttribute('transform').match(/translate\(([\d.-]+),([\d.-]+)\)/).map(Number);
+      const gapMid={x:(end[1]+start[1])/2, y:(end[2]+start[2])/2};
+      return Math.hypot(gapMid.x-g[1], gapMid.y-g[2]) < 6;
+    }), 'the mark should sit in the gap');
+
+    // selecting must not change how the verdict is drawn
+    await page.evaluate(()=>document.querySelector('svg > path.hit').dispatchEvent(new MouseEvent('click',{bubbles:true})));
+    await page.waitForTimeout(250);
+    const cutSel = await pieces();
+    check('selection leaves the break intact', cutSel.n===2 && cutSel.severed===1, JSON.stringify(cutSel));
+    await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+
+    // too short to hold the mark: dashed and hollow, but no confusing empty gap
+    await page.evaluate(()=>window.__argBuilder.moveBlock('p', 150, 20));
+    await page.waitForTimeout(350);
+    const tight = await pieces();
+    check('a short unsound wire stays whole, still dashed and hollow',
+      tight.n===1 && tight.severed===1 && /arrowEntailsHollow/.test(tight.markers[0]), JSON.stringify(tight));
+
+    // an unparseable premise must not leave the step looking valid
+    await page.evaluate(()=>window.__argBuilder.reset());
+    await page.waitForTimeout(300);
+    await page.evaluate(()=>{
+      const i=[...document.querySelectorAll('.block__input')].find(x=>x.value.trim()==='p');
+      i.value='p ∧'; i.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    await page.waitForTimeout(400);
+    const idle = await wire();
+    check('undecidable step is neutral, not green',
+      /wire--idle/.test(idle.tone) && /arrowEntailsIdle/.test(idle.marker), JSON.stringify(idle));
+
+    // selection: a casing under the wire, and the mark gives way to delete
+    await page.evaluate(()=>window.__argBuilder.reset());
+    await page.waitForTimeout(300);
+    const before = await wire();
+    check('unselected wire has no casing and no delete control', before.glow===0 && before.del===0, JSON.stringify(before));
+    await page.evaluate(()=>document.querySelector('svg > path.hit').dispatchEvent(new MouseEvent('click',{bubbles:true})));
+    await page.waitForTimeout(250);
+    const sel = await wire();
+    check('selected wire gains a casing', sel.glow===1, JSON.stringify(sel));
+    check('selected wire swaps the mark for delete', sel.mark===null && sel.del===1, JSON.stringify(sel));
+    await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+
+    // the mark drops out when the wire is too short to host it
+    await page.evaluate(()=>window.__argBuilder.moveBlock('q', 150, 20));
+    await page.waitForTimeout(300);
+    const short = await wire();
+    check('short wire drops the mark rather than crowding it', short.len < 88 && short.mark===null, JSON.stringify(short));
+    await page.evaluate(()=>window.__argBuilder.reset());
+    await page.waitForTimeout(300);
   }
 
   await page.screenshot({ path:'test-final.png' });

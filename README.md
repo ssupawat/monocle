@@ -12,6 +12,14 @@ Open `index.html` in a browser. Single file, vanilla JS, no build step.
 
 A concluded block can itself be a premise in the next step, so chains compose: `{A, A→B} ⊨ B`, then `{B, B→C} ⊨ C`, and so on.
 
+## Reading a step on the canvas
+
+Each step is drawn as one unit: a dashed bracket around the premises it draws on, a wire into the conclusion, and the turnstile riding that wire. All three carry the step's own verdict — **⊨ green** when it holds, **⊭ red** when a counterexample exists, and neutral grey while it cannot be judged (an unparseable formula upstream). The negated turnstile means the verdict never rests on colour alone.
+
+A step that does not hold is drawn as a link that does not carry: the solid line runs out partway, ⊭ sits in the break, and what continues past it is dashed, faded and ends in a hollow arrowhead that never lands. Where the wire is too short to hold the mark, it stays whole — still dashed, still hollow-tipped — rather than showing an empty gap that would read as a rendering fault.
+
+Click a wire to select the step: it gains a casing, and the turnstile gives way to a delete control that sits in the same place (`Delete` also removes the selected step). Selecting never changes how a verdict is drawn — the casing breaks with the wire, so a severed step stays visibly severed.
+
 ## Check validity
 
 The verdict comes from a **DPLL SAT solver**, not enumeration. An argument is valid iff `premises ∧ ¬conclusion` is UNSAT; a satisfying model (when one exists) is a counterexample. This scales to any number of variables (the old truth-table engine misreported valid for `n>20`; DPLL fixes that).
@@ -35,6 +43,12 @@ Toggle buttons sit anchored above the panels they control:
 
 - **Premises** (left) — define symbol + plain-English meaning; symbols autocomplete into block formulas from a custom dropdown.
 - **Validity** (right) — per-branch verdicts for multi-step arguments. Includes **View as proof**, a read-only linearization of the current argument into a numbered natural-deduction proof (premises first, each derived step with its rule and the line numbers it cites), with copy-to-clipboard.
+
+## Appearance
+
+Light and dark themes. The toolbar toggle switches between them and remembers the choice in `localStorage`; with no choice saved the app follows the OS setting and tracks changes to it live. The theme is resolved before first paint, so a dark-mode reload never flashes white.
+
+Colour carries meaning consistently: the interface accent (indigo) is never a verdict, **green means the step holds**, **red means a counterexample exists**. A derived block's frame, header, premise bracket and incoming wire all take the colour of its own verdict — an invalid step is red end to end, never a green frame around a false conclusion. Indigo is left to mean "selected", and nothing else.
 
 ## Share
 
@@ -68,8 +82,10 @@ npx playwright install chrome   # real Chrome channel; bundled Chromium renders 
 node test.mjs
 ```
 
-126 Playwright tests (run headlessly against `file://`) cover: DPLL validity at scale, pattern and fallacy detection, multi-step chain propagation, the cycle guard, persistence, shareable URLs, the proof readout, ARIA autocomplete, and render re-entrancy. Tests seed app state directly through `window.__argBuilder` / `window.__logic` hooks for determinism.
+155 Playwright tests (run headlessly against `file://`) cover: DPLL validity at scale, pattern and fallacy detection, multi-step chain propagation, the cycle guard, persistence, shareable URLs, the proof readout, ARIA autocomplete, render re-entrancy, theme persistence, and the verdict-coloured blocks and wires. Tests seed app state directly through `window.__argBuilder` / `window.__logic` hooks for determinism.
 
 ## Tech
 
-Single HTML file (~2100 lines). Vanilla JS. No frameworks, no build step. Validity engine is a hand-written DPLL SAT solver with CNF conversion.
+Single HTML file. Vanilla JS. No frameworks, no build step. Validity engine is a hand-written DPLL SAT solver with CNF conversion.
+
+Styling is one token layer (`:root` for light, `[data-theme="dark"]` for dark) that every rule resolves through, so the dark theme is a token swap rather than a second stylesheet. Icons are an inline SVG sprite — the page requests no icon webfont, so it renders identically offline and over `file://`.
