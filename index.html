@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Monocle: reason in blocks</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
@@ -189,7 +189,7 @@
 }
 
 *{box-sizing:border-box}
-html,body{margin:0;height:100%}
+html,body{margin:0;height:100%;overscroll-behavior:none}
 body{
   font-family:var(--sans);
   background:var(--canvas);
@@ -200,6 +200,14 @@ body{
   overflow:hidden;
   -webkit-font-smoothing:antialiased;
   text-rendering:optimizeLegibility;
+  /* phones: the app owns every gesture on the canvas, so no grey flash on tap
+     and no browser double-tap zoom stealing a second tap from us */
+  -webkit-tap-highlight-color:transparent;
+}
+/* dvh where it exists: a mobile URL bar sliding away must not leave the canvas
+   short, and 100vh on iOS Safari is the *tall* viewport, not the visible one */
+@supports (height:100dvh){
+  body{height:100dvh}
 }
 ::selection{background:var(--accent-tint);color:var(--ink)}
 :focus-visible{outline:0.125rem solid var(--accent);outline-offset:0.125rem}
@@ -318,7 +326,16 @@ body{
   background-color:var(--canvas);
   background-image:radial-gradient(var(--grid-dot) 0.0625rem, transparent 0.0625rem);
   background-size:1.5rem 1.5rem;
+  /* the app pans and pinches the canvas itself, so the browser must not also
+     scroll or zoom the page from the same gesture */
+  touch-action:none;
 }
+@supports (height:100dvh){
+  .canvas-wrap{height:100dvh}
+}
+/* …but anything that scrolls or takes text back gets its native behaviour */
+.validity-card,.premises-card,.help-pop,.proof-view,.examples-menu,.ac,.block__truth{touch-action:pan-y}
+.block__input,.premise-row__sym,.premise-row__desc,input,textarea{touch-action:auto}
 .canvas-wrap.panning{cursor:grabbing}
 .canvas{position:absolute;inset:0;overflow:visible;z-index:1}
 .wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
@@ -340,7 +357,9 @@ body{
   font-size:0.8125rem;font-weight:600;z-index:5;box-shadow:var(--sh3);
   display:flex;align-items:center;gap:0.6rem;
 }
+.link-banner__text{min-width:0}
 .link-banner button{
+  flex:none;
   background:transparent;color:var(--on-ink);border:0.0625rem solid #ffffff40;
   font:inherit;font-size:0.75rem;font-weight:600;border-radius:var(--r-pill);
   padding:0.2rem 0.7rem;cursor:pointer;transition:background var(--dur) var(--ease);
@@ -417,6 +436,41 @@ body{
 .block__close:hover{color:var(--invalid);background:var(--invalid-tint);border-color:transparent}
 .block__actions{display:flex;gap:0.3rem;flex-wrap:wrap;padding:0.45rem 0.6rem;border-top:0.0625rem solid var(--line);background:var(--sunken)}
 
+/* “use as premise”: the pointer-free way into a step. Lasso needs a drag on
+   empty canvas, which on a touch screen is how you pan — so picking premises
+   gets its own control, one per block, and it works the same with a mouse. */
+.block__pick{
+  width:1.5rem;height:1.5rem;padding:0;border-color:transparent;
+  display:grid;place-items:center;border-radius:var(--r-sm);color:var(--faint);
+}
+.block__pick:hover{color:var(--accent);background:var(--accent-tint);border-color:transparent}
+.block__pick[aria-pressed="true"]{color:var(--accent);background:var(--accent-tint);border-color:var(--accent-edge)}
+.block__pick .icon--check{display:none}
+.block__pick[aria-pressed="true"] .icon--plus{display:none}
+.block__pick[aria-pressed="true"] .icon--check{display:block}
+
+/* While premises are picked, every other block is a candidate conclusion. On a
+   touch screen the input covers most of a block, so the tap target is an
+   overlay across the whole block rather than the sliver of header beside it. */
+.block--target{border-color:var(--accent-edge)}
+.block__conclude{
+  position:absolute;inset:0;z-index:2;display:none;
+  align-items:center;justify-content:center;
+  border:0;border-radius:var(--r-lg);background:var(--accent-tint);
+  font:inherit;cursor:pointer;padding:0.5rem;
+}
+/* the wash stays sheer so the formula underneath is still readable — you are
+   choosing between blocks, and the label must not hide which one this is */
+.block__conclude span{
+  background:var(--content);color:var(--accent);
+  border:0.0625rem solid var(--accent-edge);border-radius:var(--r-pill);
+  padding:0.3rem 0.7rem;font-size:0.8125rem;font-weight:600;
+  box-shadow:var(--sh2);white-space:nowrap;
+}
+@media (pointer:coarse){
+  .block--target .block__conclude{display:flex}
+}
+
 /* ---------- the entailment wire ---------- */
 .wires .wire{transition:stroke-width var(--dur) var(--ease)}
 /* an unsound step is drawn in two pieces, so hover has to reach both */
@@ -490,10 +544,15 @@ body{
   font-family:var(--mono);font-size:0.6875rem;text-transform:uppercase;letter-spacing:0.08em;
   color:var(--mute);margin:0 0 0.65rem;font-weight:500;
 }
+/* a sheet hides the toggle that opened it, so it carries its own way out.
+   Only shown where the panels are sheets — see the phone block below. */
+.panel__close{display:none;align-items:center;justify-content:center}
 
 /* verdict */
 .verdict-head{display:flex;justify-content:space-between;align-items:center;gap:0.5rem;margin-bottom:0.45rem}
-.verdict-head h2{margin:0}
+/* the title takes the slack, so the buttons stay grouped at the trailing edge
+   however many of them the layout shows */
+.verdict-head h2{margin:0 auto 0 0}
 .proof-trigger{padding:0.3rem;line-height:0}
 .proof-trigger .icon{margin:0;width:1rem;height:1rem}
 .proof-trigger[hidden]{display:none}
@@ -729,6 +788,127 @@ body{
 @media (max-width:56rem){
   .validity-card,.premises-card{width:min(21.5rem,calc(100vw - 2rem))}
 }
+
+/* =======================================================================
+   touch pointers
+   Sizing, not layout: a finger needs a target it can land on, and iOS zooms
+   the whole page when it focuses a field under 16px. Applies to tablets and
+   touch laptops as much as to phones, so it keys off the pointer, not width.
+   ======================================================================= */
+@media (pointer:coarse){
+  /* fixed chrome: 44px, the size a fingertip is reliably placed on */
+  .button{min-height:2.75rem;padding:0.5rem 0.8rem}
+  .button--icon{padding:0.5rem 0.6rem;min-width:2.75rem}
+  .icon-btn{min-width:2.75rem;min-height:2.75rem}
+  .zoom-btn{width:2.75rem;height:2.75rem}
+  .zoom-pct{min-width:3.4rem;min-height:2.75rem;padding:0.5rem 0.3rem}
+  .help-fab{width:2.9rem;height:2.9rem}
+  .premise-row__del{min-width:2.75rem;min-height:2.75rem}
+  .premises-add{padding:0.7rem 0.6rem}
+  .examples-menu__item{padding:0.7rem 0.65rem}
+  .link-banner button{padding:0.5rem 0.9rem}
+  .hint__close{padding:0.5rem 1rem}
+  .branch-toggle{width:2.25rem;height:2.25rem}
+  /* controls that live on the canvas are 36px and scale with zoom: a block
+     header cannot spend 88px of its width on two buttons, and a pinch is
+     always available when a target is small */
+  .ops{gap:0.35rem;padding:0.45rem 0.6rem}
+  .ops__b{min-width:2.5rem;height:2.5rem;font-size:1rem}
+  .block__close,.block__pick,.block__actions .icon-btn{
+    width:2.25rem;height:2.25rem;min-width:2.25rem;min-height:2.25rem;
+  }
+  .block__close .icon,.block__pick .icon{width:1.1rem;height:1.1rem}
+  .block__input{font-size:1.0625rem}
+  .premise-row__sym,.premise-row__desc{font-size:1rem;padding:0.5rem 0.55rem}
+  .wire-del{width:2.25rem;height:2.25rem}
+  .wire-del .icon{width:0.95rem;height:0.95rem}
+}
+
+/* =======================================================================
+   phones: one column of chrome at the top, one at the bottom, panels as
+   sheets. Thumbs reach the bottom edge, so the panel toggles and the zoom
+   readout live there; the top keeps the thing you came to do (add a block).
+   ======================================================================= */
+@media (max-width:40rem){
+  .top-pill{
+    top:calc(0.5rem + env(safe-area-inset-top));
+    left:calc(0.5rem + env(safe-area-inset-left));
+    right:calc(3.7rem + env(safe-area-inset-right));   /* clear of the help button */
+    transform:none;justify-content:space-between;gap:0.1rem;
+  }
+  .top-pill .button{font-size:0.8125rem}
+  /* the bar is only as wide as the phone: the one labelled button is the one
+     you came for, the rest go icon-only */
+  #clearBtn .button__label{display:none}
+  #clearBtn .icon{margin-right:0}
+  #clearBtn{padding:0.5rem 0.6rem;min-width:2.75rem}
+
+  /* panel toggles + zoom sit on the bottom edge, within thumb reach, and stay
+     above an open sheet the way a tab bar does — so you can switch panels
+     without closing one first */
+  .side-pill,.zoom-widget{z-index:30}
+  .side-pill{top:auto;bottom:calc(0.6rem + env(safe-area-inset-bottom))}
+  .side-pill--left{left:calc(0.6rem + env(safe-area-inset-left))}
+  .side-pill--right{right:calc(0.6rem + env(safe-area-inset-right))}
+  .zoom-widget{left:50%;transform:translateX(-50%);bottom:calc(0.6rem + env(safe-area-inset-bottom))}
+
+  /* help moves to the free top-right corner, and opens downward from it */
+  .help-fab{
+    position:fixed;top:calc(0.5rem + env(safe-area-inset-top));
+    right:calc(0.6rem + env(safe-area-inset-right));bottom:auto;
+  }
+  .help-pop{
+    top:calc(3.9rem + env(safe-area-inset-top));bottom:auto;
+    left:calc(0.6rem + env(safe-area-inset-left));right:calc(0.6rem + env(safe-area-inset-right));
+    width:auto;max-height:calc(100vh - 6rem);max-height:calc(100dvh - 6rem);
+  }
+
+  /* side panels become bottom sheets: full width, half the screen, dismissible.
+     A sheet sits over the bottom row it was opened from — hence its close button */
+  .validity-card,.premises-card{
+    top:auto;bottom:0;left:0;right:0;width:100%;
+    height:auto;max-height:70vh;max-height:70dvh;
+    padding:0;z-index:25;
+  }
+  .validity-card .panel,.premises-card .panel{
+    border-radius:var(--r-xl) var(--r-xl) 0 0;border-bottom:0;
+    box-shadow:var(--sh3);
+    /* the last row of content clears the toggle row floating over the sheet */
+    padding:0.9rem 0.9rem calc(4.2rem + env(safe-area-inset-bottom));
+  }
+  .panel__close{display:inline-flex}
+  .premises-card h2,.validity-card h2{margin-bottom:0}
+  .panel__head{display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.65rem}
+
+  /* the “now pick a conclusion” banner clears the bottom row */
+  .link-banner{
+    left:calc(0.6rem + env(safe-area-inset-left));right:calc(0.6rem + env(safe-area-inset-right));
+    transform:none;justify-content:center;text-align:center;
+    bottom:calc(4.4rem + env(safe-area-inset-bottom));
+  }
+  .hint{
+    top:calc(4rem + env(safe-area-inset-top));
+    left:calc(0.6rem + env(safe-area-inset-left));right:calc(0.6rem + env(safe-area-inset-right));
+    transform:none;max-width:none;
+  }
+  .block{max-width:min(18rem,calc(100vw - 3rem))}
+  .proof-view{width:calc(100vw - 1.2rem);max-height:calc(100vh - 3rem);max-height:calc(100dvh - 3rem)}
+  .empty-hint{padding:6rem 2rem}
+}
+
+/* on a phone the zoom buttons give way to pinch, which is what a hand reaches
+   for anyway; the readout stays, since it doubles as “reset to 100%” */
+@media (max-width:40rem) and (pointer:coarse){
+  #zoomIn,#zoomOut{display:none}
+}
+
+/* instructions come in two dialects; show the one that matches the pointer */
+.for-touch{display:none}
+@media (pointer:coarse){
+  .for-mouse{display:none}
+  .for-touch{display:block}
+  span.for-touch{display:inline}
+}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition-duration:.01ms !important;animation-duration:.01ms !important}
 }
@@ -755,6 +935,8 @@ body{
     <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.9.7c0 1.7-2.5 2.1-2.5 3.7"/><path d="M12 17.2h.01" stroke-width="2.2"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.8v2.1M12 19.1v2.1M4.5 4.5l1.5 1.5M18 18l1.5 1.5M2.8 12h2.1M19.1 12h2.1M4.5 19.5L6 18M18 6l1.5-1.5"/></symbol>
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 13.4A8.2 8.2 0 0 1 10.6 4a8.5 8.5 0 1 0 9.4 9.4z"/></symbol>
+    <symbol id="i-pick" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 8.2v7.6M8.2 12h7.6"/></symbol>
+    <symbol id="i-picked" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.2 12.3l2.6 2.6 5-5.4"/></symbol>
   </defs>
 </svg>
 
@@ -773,7 +955,7 @@ body{
         </marker>
       </defs>
     </svg>
-    <div class="empty-hint" id="emptyHint">No blocks yet. Click “Add block”.</div>
+    <div class="empty-hint" id="emptyHint">No blocks yet. <span class="for-mouse">Click</span><span class="for-touch">Tap</span> “Add block”.</div>
   </div>
 
   <!-- top-center floating action pill -->
@@ -783,7 +965,7 @@ body{
       <div class="examples-menu" id="examplesMenu" hidden></div>
     </div>
     <span class="pill-sep" aria-hidden="true"></span>
-    <button class="button button--tertiary" id="clearBtn"><svg class="icon" aria-hidden="true"><use href="#i-clear"></use></svg>Clear</button>
+    <button class="button button--tertiary" id="clearBtn" data-tip="Clear the canvas" aria-label="Clear the canvas"><svg class="icon" aria-hidden="true"><use href="#i-clear"></use></svg><span class="button__label">Clear</span></button>
     <button class="button button--tertiary button--icon" id="shareBtn" data-tip="Share" aria-label="Copy a link to this argument"><svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg></button>
     <span class="pill-sep" aria-hidden="true"></span>
     <button class="button button--tertiary button--icon" id="themeBtn" data-tip="Switch to dark" aria-label="Switch to dark theme"><svg class="icon icon--moon" aria-hidden="true"><use href="#i-moon"></use></svg><svg class="icon icon--sun" aria-hidden="true"><use href="#i-sun"></use></svg></button>
@@ -803,6 +985,7 @@ body{
       <div class="verdict-head">
         <h2>Validity</h2>
         <button class="button button--tertiary button--icon proof-trigger" id="proofViewBtn" hidden data-tip="Show the argument as a numbered proof" aria-expanded="false" aria-controls="proofView"><svg class="icon" aria-hidden="true"><use href="#i-tree"></use></svg></button>
+        <button class="icon-btn panel__close" id="sidebarClose" data-tip="Close" aria-label="Close the validity panel"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></button>
       </div>
       <div id="verdictBody"><span class="badge badge--idle">no argument yet</span>
         <p class="note">Add blocks, join premises with ∧, and draw a ⊨ wire to a conclusion.</p>
@@ -813,7 +996,10 @@ body{
   <!-- floating premises panel (right) -->
   <aside class="premises-card" id="premPanel" hidden>
     <section class="panel">
-      <h2>Premises</h2>
+      <div class="panel__head">
+        <h2>Premises</h2>
+        <button class="icon-btn panel__close" id="premClose" data-tip="Close" aria-label="Close the premises panel"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></button>
+      </div>
       <p class="note" style="margin:0 0 0.6rem;font-size:0.75rem">Define symbols and their meanings. Use the symbols inside blocks.</p>
       <div id="premiseRows"></div>
       <button class="premises-add" id="premAdd"><svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg> Add premise</button>
@@ -838,15 +1024,19 @@ body{
 
 <!-- first-visit hint -->
 <aside class="hint" id="hint" hidden>
-  <p><strong>Tip:</strong> Drag on empty canvas to lasso-select premises, then click a block to set it as the conclusion.</p>
+  <p class="for-mouse"><strong>Tip:</strong> Drag on empty canvas to lasso-select premises, then click a block to set it as the conclusion.</p>
+  <p class="for-touch"><strong>Tip:</strong> Tap ⊕ on the blocks you want as premises, then tap another block to conclude. Drag the canvas to pan, pinch to zoom.</p>
   <button class="hint__close" id="hintClose">Got it</button>
 </aside>
 
 <section class="help-pop" id="helpPop" hidden>
   <h2>How it works</h2>
   <p><strong>1. Add blocks.</strong> Type statements inside, like <code>p → q</code>.</p>
-  <p><strong>2. Lasso-select</strong> premise blocks (drag on empty canvas).</p>
-  <p><strong>3. Click a block</strong> to set it as the conclusion. The selected premises now entail it.</p>
+  <p class="for-mouse"><strong>2. Pick premises:</strong> lasso-select them (drag on empty canvas), or hit ⊕ in a block’s header.</p>
+  <p class="for-touch"><strong>2. Pick premises:</strong> tap ⊕ in the header of each premise block.</p>
+  <p class="for-mouse"><strong>3. Click a block</strong> to set it as the conclusion. The selected premises now entail it.</p>
+  <p class="for-touch"><strong>3. Tap another block</strong> to set it as the conclusion. The picked premises now entail it.</p>
+  <p class="for-touch"><strong>Move around:</strong> drag the canvas to pan, pinch to zoom, drag a block by its header.</p>
   <p><strong>Valid</strong> means: no case where all premises are true and the conclusion is false.</p>
   <p><strong class="is-trivial">Trivial</strong> means: the conclusion is already one of the premises. Logically valid, but adds no new information.</p>
   <p><strong>Operators:</strong> <code>¬ ∧ ∨ → ↔</code>, or type <code>! &amp; | -&gt; &lt;-&gt;</code>. Variables are letters like <code>p</code>, <code>q</code>.</p>
@@ -1072,6 +1262,16 @@ const state={
   premises:[],         // [{symbol, description}]
 };
 const ZOOM_MIN=0.4, ZOOM_MAX=2.5;
+
+/* ---- what the hand and the screen can do ----
+   Queried live rather than sniffed once: a tablet gains a trackpad, a window
+   is resized, and the answer has to change with it. */
+const mq=(q)=>window.matchMedia?matchMedia(q):{matches:false,addEventListener(){}};
+const MQ_COARSE=mq('(pointer:coarse)');
+const MQ_PHONE=mq('(max-width:40rem)');
+const coarsePointer=()=>MQ_COARSE.matches;      // finger or stylus, not a cursor
+const phoneLayout=()=>MQ_PHONE.matches;         // panels are sheets, chrome is stacked
+
 const canvas=document.getElementById('canvas');
 const wiresSvg=document.getElementById('wires');
 const emptyHint=document.getElementById('emptyHint');
@@ -1187,21 +1387,36 @@ function loadFromPayload(payload){
 
 /* ================= block ops ================= */
 function addBlock(label='', x, y){
-  const rect=canvas.getBoundingClientRect();
-  // spawn relative to the CURRENTLY VISIBLE center (accounts for pan)
+  // measure the window the user is looking through, not the scaled canvas:
+  // after a pinch the canvas is bigger than the screen, and half of it is not
+  // the middle of the view
+  const rect=canvas.parentElement.getBoundingClientRect();
+  // spawn relative to the CURRENTLY VISIBLE center (accounts for pan and zoom)
   const vcx=(rect.width/2 - state.panX)/state.zoom;
   const vcy=(rect.height/2 - state.panY)/state.zoom;
   const id=state.nextId++;
   const n=state.blocks.length;     // cascade so new blocks don't stack
+  // both offsets are capped by the viewport: on a phone a fixed 200px drop and
+  // a 60px stagger would spawn the block off the bottom or off the right edge
+  const drop=Math.min(200, rect.height*0.25)/state.zoom;
+  const step=Math.min(60, rect.width*0.06)/state.zoom;
   state.blocks.push({
     id, label,
-    x: x ?? (vcx - 110 + (n % 4) * 60),
-    y: y ?? (vcy + 200 + Math.floor(n / 4) * 60),
+    x: x ?? (vcx - 110 + (n % 4) * step),
+    y: y ?? (vcy + drop + Math.floor(n / 4) * step),
   });
   render(); syncFocus(id); persist();
 }
 function syncFocus(id){
   requestAnimationFrame(()=>{const el=canvas.querySelector('[data-id="'+id+'"] .block__input'); if(el){el.focus();el.select();}});
+}
+/* pick / unpick a block as a premise for the next step. Lasso-select needs a
+   drag on empty canvas, which on a touch screen is how you pan — so the same
+   choice is available one block at a time, from the block itself. */
+function togglePick(id){
+  if(state.selectedBlocks.has(id)) state.selectedBlocks.delete(id);
+  else state.selectedBlocks.add(id);
+  renderSelection(); renderLinkBanner();
 }
 function deleteBlock(id){
   state.blocks=state.blocks.filter(b=>b.id!==id);
@@ -1600,7 +1815,7 @@ function _render(){
 function mkBlockEl(b){
   const el=document.createElement('div'); el.className='block'; el.dataset.id=b.id;
   el.innerHTML=`
-    <div class="block__head"><span class="block__role"></span><button class="icon-btn block__close" data-act="del" data-tip="Delete this block"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></button></div>
+    <div class="block__head"><span class="block__role"></span><button class="icon-btn block__pick" data-act="pick" aria-pressed="false" data-tip="Use as a premise" aria-label="Use as a premise"><svg class="icon icon--plus" aria-hidden="true"><use href="#i-pick"></use></svg><svg class="icon icon--check" aria-hidden="true"><use href="#i-picked"></use></svg></button><button class="icon-btn block__close" data-act="del" data-tip="Delete this block"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></button></div>
     <input class="block__input" spellcheck="false" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="ac-listbox" aria-autocomplete="list">
     <div class="ops" data-ops>
       <button type="button" class="ops__b" data-sym="¬">¬</button>
@@ -1614,7 +1829,8 @@ function mkBlockEl(b){
     <div class="block__truthwrap"></div>
     <div class="block__actions">
       <button class="icon-btn" data-act="table" data-tip="Show truth table"><svg class="icon" aria-hidden="true"><use href="#i-grid"></use></svg></button>
-    </div>`;
+    </div>
+    <button class="block__conclude" data-act="conclude" tabindex="-1" aria-hidden="true"><span>⊨ conclude here</span></button>`;
   // input
   const input=el.querySelector('.block__input');
   input.addEventListener('input',()=>setLabel(b.id,input.value));
@@ -1633,10 +1849,13 @@ function mkBlockEl(b){
   });
   // actions
   el.addEventListener('click',(ev)=>{
+    const act=ev.target.closest('[data-act]');
     // click-to-conclude: if blocks are selected and this block is not one of them
     if(state.selectedBlocks.size>0 && !state.selectedBlocks.has(b.id)){
-      // only if click is on block body (not input/button/operator)
-      if(!ev.target.closest('input') && !ev.target.closest('[data-act]') && !ev.target.closest('[data-ops]')){
+      // the overlay is the whole-block target a finger gets; with a mouse the
+      // block body still works, minus the input and the controls on it
+      const viaOverlay = act && act.dataset.act==='conclude';
+      if(viaOverlay || (!ev.target.closest('input') && !act && !ev.target.closest('[data-ops]'))){
         ev.stopPropagation();
         const sel=[...state.selectedBlocks];
         state.selectedBlocks.clear();
@@ -1645,17 +1864,17 @@ function mkBlockEl(b){
         return;
       }
     }
-    const act=ev.target.closest('[data-act]'); 
     if(act){
       const a=act.dataset.act;
       if(a==='table') toggleTable(b.id);
       else if(a==='del') deleteBlock(b.id);
+      else if(a==='pick') togglePick(b.id);
       return;
     }
   });
-  // drag from header
+  // drag from header — pointer events, so a finger drags a block like a mouse does
   const head=el.querySelector('.block__head');
-  head.addEventListener('mousedown',(ev)=>beginDrag(ev,b.id));
+  head.addEventListener('pointerdown',(ev)=>beginDrag(ev,b.id));
   return el;
 }
 function updateBlockEl(el,b){
@@ -1676,7 +1895,16 @@ function updateBlockEl(el,b){
   }
   el.classList.toggle('block--conclusion',!!isDerived);
   // classes
-  el.classList.toggle('block--selected', state.selectedBlocks.has(b.id));
+  const picked=state.selectedBlocks.has(b.id);
+  el.classList.toggle('block--selected', picked);
+  // with premises picked, every other block is a candidate conclusion
+  el.classList.toggle('block--target', state.selectedBlocks.size>0 && !picked);
+  const pick=el.querySelector('.block__pick');
+  if(pick){
+    pick.setAttribute('aria-pressed', picked?'true':'false');
+    pick.setAttribute('data-tip', picked?'Remove from premises':'Use as a premise');
+    pick.setAttribute('aria-label', picked?'Remove from premises':'Use as a premise');
+  }
   // parse error (hidden while the input is focused / actively being typed)
   const errEl=el.querySelector('.block__err');
   const p=tryParse(b.label);
@@ -1968,7 +2196,8 @@ function renderWires(){
     // hit area (clickable) — reuses same d
     const hit=document.createElementNS('http://www.w3.org/2000/svg','path');
     hit.setAttribute('d',d); hit.setAttribute('class','hit');
-    hit.setAttribute('stroke','transparent'); hit.setAttribute('stroke-width','16'); hit.setAttribute('fill','none');
+    // a fingertip is wider than a cursor, so the invisible hit line is too
+    hit.setAttribute('stroke','transparent'); hit.setAttribute('stroke-width',coarsePointer()?'30':'16'); hit.setAttribute('fill','none');
     hit.addEventListener('click',(e)=>{e.stopPropagation(); state.selectedStep=cid; render(); });
     wiresSvg.appendChild(hit);
     // visible: the last segment carries the arrowhead, the rest just run
@@ -2004,39 +2233,59 @@ function renderLinkBanner(){
   if(!state.selectedBlocks.size) return;
   const b=document.createElement('div');
   b.className='link-banner';
-  b.innerHTML='Selected '+state.selectedBlocks.size+' block(s). <strong>Click a block</strong> to conclude · <button>cancel (esc)</button>';
+  const verb=coarsePointer()?'Tap':'Click';
+  const escape=coarsePointer()?'cancel':'cancel (esc)';
+  // one text run, one button: leaving the sentence as loose text nodes made
+  // each fragment its own flex item, which tore the line apart on a phone
+  b.innerHTML='<span class="link-banner__text">Selected '+state.selectedBlocks.size+
+    ' block(s). <strong>'+verb+' a block</strong> to conclude</span>'+
+    '<button>'+escape+'</button>';
   b.querySelector('button').addEventListener('click',()=>{state.selectedBlocks.clear();renderSelection();renderLinkBanner();});
   canvasWrap.appendChild(b);
 }
 
-/* ================= dragging ================= */
+/* ================= dragging =================
+   Pointer events throughout: one code path covers mouse, pen and finger, and
+   pointer capture keeps a drag alive when the finger outruns the block. */
 function beginDrag(ev,id){
+  if(ev.button>0) return;                       // right/middle press is not a drag
+  // the header carries controls: a press on one is a tap, and swallowing it
+  // here would cost the tap its click on a touch screen
+  if(ev.target.closest('button')) return;
+  if(touches.size>1) return;                    // second finger down: this is a pinch
   const b=B(id); if(!b) return;
-  const crect=canvas.getBoundingClientRect();
-  const er=ev.currentTarget.getBoundingClientRect();
-  state.dragging={id, dx:ev.clientX-er.left, dy:ev.clientY-er.top};
-  const el=canvas.querySelector('.block[data-id="'+id+'"]'); el.classList.add('block--dragging');
+  const el=canvas.querySelector('.block[data-id="'+id+'"]'); if(!el) return;
+  // grab offset is measured against the block, not the header inside it —
+  // otherwise the block jumps by its own border the moment you pick it up
+  const er=el.getBoundingClientRect();
+  state.dragging={id, dx:ev.clientX-er.left, dy:ev.clientY-er.top, pointerId:ev.pointerId};
+  el.classList.add('block--dragging');
+  try{ ev.currentTarget.setPointerCapture(ev.pointerId); }catch(e){}
   ev.preventDefault();
+  ev.stopPropagation();                         // a block drag is never a canvas pan
 }
-window.addEventListener('mousemove',(ev)=>{
+window.addEventListener('pointermove',(ev)=>{
   if(!state.dragging) return;
-  const {id,dx,dy}=state.dragging;
+  const {id,dx,dy,pointerId}=state.dragging;
+  if(pointerId!=null && ev.pointerId!==pointerId) return;
   const b=B(id); if(!b) return;
   const crect=canvas.getBoundingClientRect();
-  let x=ev.clientX-crect.left-dx, y=ev.clientY-crect.top-dy;
+  let x=(ev.clientX-crect.left)/state.zoom-dx/state.zoom, y=(ev.clientY-crect.top)/state.zoom-dy/state.zoom;
   b.x=x; b.y=y;
   const el=canvas.querySelector('.block[data-id="'+id+'"]');
   if(el){el.style.left=x+'px'; el.style.top=y+'px';}
   renderWires();
 });
-window.addEventListener('mouseup',()=>{
-  if(state.dragging){
-    const el=canvas.querySelector('.block[data-id="'+state.dragging.id+'"]');
-    if(el) el.classList.remove('block--dragging');
-    state.dragging=null;
-    persist();
-  }
-});
+function endDrag(ev){
+  if(!state.dragging) return;
+  if(ev && state.dragging.pointerId!=null && ev.pointerId!==state.dragging.pointerId) return;
+  const el=canvas.querySelector('.block[data-id="'+state.dragging.id+'"]');
+  if(el) el.classList.remove('block--dragging');
+  state.dragging=null;
+  persist();
+}
+window.addEventListener('pointerup',endDrag);
+window.addEventListener('pointercancel',endDrag);
 
 /* ================= global events ================= */
 let suppressNextClick=false;
@@ -2052,24 +2301,75 @@ canvas.addEventListener('click',(ev)=>{
 function renderSelection(){
   state.blocks.forEach(b=>{
     const el=canvas.querySelector('.block[data-id="'+b.id+'"]');
-    if(el) el.classList.toggle('block--selected', state.selectedBlocks.has(b.id));
+    if(!el) return;
+    const picked=state.selectedBlocks.has(b.id);
+    el.classList.toggle('block--selected', picked);
+    el.classList.toggle('block--target', state.selectedBlocks.size>0 && !picked);
+    const pick=el.querySelector('.block__pick');
+    if(pick){
+      pick.setAttribute('aria-pressed', picked?'true':'false');
+      pick.setAttribute('data-tip', picked?'Remove from premises':'Use as a premise');
+      pick.setAttribute('aria-label', picked?'Remove from premises':'Use as a premise');
+    }
   });
 }
 
-/* ================= canvas pan (middle-click + two-finger touch) + lasso (left-drag) ================= */
+/* ================= canvas gestures =================
+   Mouse: middle-drag pans, left-drag on empty canvas lassos.
+   Touch: one finger pans (a lasso would fight the gesture every phone user
+   already knows), two fingers pinch to zoom. Premises are picked per block
+   instead — see togglePick. */
 const canvasWrap=document.getElementById('canvasWrap');
-let panning=null;     // {startX, startY, panX0, panY0, moved}
-let lasso=null;       // {startX, startY, curX, curY, el, moved}
+let panning=null;     // {startX, startY, panX0, panY0, moved, pointerId}
+let lasso=null;       // {startX, startY, curX, curY, el, moved, pointerId}
+const touches=new Map();   // live touch pointers, for pinch
+let pinch=null;       // {dist, cx, cy}
 
 function onEmptyTarget(t){
   return t===canvas||t===wiresSvg||t===emptyHint||t===canvasWrap;
 }
+function touchMid(){
+  const pts=[...touches.values()];
+  return {x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2,
+          d:Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y)};
+}
+function cancelCanvasGesture(){
+  if(panning){ if(panning.moved) canvasWrap.classList.remove('panning'); panning=null; }
+  if(lasso){ if(lasso.el) lasso.el.remove(); document.body.style.userSelect=''; lasso=null; }
+  if(state.dragging){
+    const el=canvas.querySelector('.block[data-id="'+state.dragging.id+'"]');
+    if(el) el.classList.remove('block--dragging');
+    state.dragging=null; persist();
+  }
+}
+// Fingers are counted in the capture phase, before a block can stop the event
+// on its way up: a second finger has to start a pinch even when the first one
+// landed on a block and is dragging it.
+window.addEventListener('pointerdown',(ev)=>{
+  if(ev.pointerType!=='touch'&&ev.pointerType!=='pen') return;
+  if(!canvasWrap.contains(ev.target)) return;
+  if(ev.target.closest('.validity-card,.premises-card,.top-pill,.side-pill,.zoom-widget')) return;
+  touches.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
+  if(touches.size===2){
+    cancelCanvasGesture();          // two fingers outrank whatever one was doing
+    const m=touchMid();
+    pinch={dist:m.d, x:m.x, y:m.y};
+  }
+},true);
 
-canvasWrap.addEventListener('mousedown',(ev)=>{
+canvasWrap.addEventListener('pointerdown',(ev)=>{
+  if(ev.pointerType==='touch'||ev.pointerType==='pen'){
+    if(touches.size!==1) return;               // pinching, or a stray extra finger
+    if(state.dragging) return;                 // a block is already under this finger
+    if(!onEmptyTarget(ev.target)) return;
+    // one finger on empty canvas → pan (this is the gesture a phone teaches)
+    panning={startX:ev.clientX,startY:ev.clientY,panX0:state.panX,panY0:state.panY,moved:false,pointerId:ev.pointerId,touch:true};
+    return;
+  }
   // middle-click pan (anywhere)
   if(ev.button===1){
     ev.preventDefault();
-    panning={startX:ev.clientX,startY:ev.clientY,panX0:state.panX,panY0:state.panY,moved:false};
+    panning={startX:ev.clientX,startY:ev.clientY,panX0:state.panX,panY0:state.panY,moved:false,pointerId:ev.pointerId};
     return;
   }
   // left-click on empty canvas → start lasso
@@ -2077,12 +2377,26 @@ canvasWrap.addEventListener('mousedown',(ev)=>{
     ev.preventDefault();  // suppress native text selection during drag
     const r=canvasWrap.getBoundingClientRect();
     const x=ev.clientX-r.left, y=ev.clientY-r.top;
-    lasso={startX:x,startY:y,curX:x,curY:y,el:null,moved:false};
+    lasso={startX:x,startY:y,curX:x,curY:y,el:null,moved:false,pointerId:ev.pointerId};
   }
 });
 
-window.addEventListener('mousemove',(ev)=>{
+window.addEventListener('pointermove',(ev)=>{
+  if(touches.has(ev.pointerId)) touches.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
+  // two fingers: zoom about the midpoint, and pan with it as it travels
+  if(pinch && touches.size>=2){
+    const m=touchMid();
+    const rect=canvasWrap.getBoundingClientRect();
+    if(pinch.dist>0){
+      state.panX+=m.x-pinch.x; state.panY+=m.y-pinch.y;
+      setZoom(state.zoom*(m.d/pinch.dist), m.x-rect.left, m.y-rect.top);
+      applyZoom();     // setZoom is a no-op when clamped; the pan still has to land
+    }
+    pinch={dist:m.d, x:m.x, y:m.y};
+    return;
+  }
   if(panning){
+    if(panning.pointerId!=null && ev.pointerId!==panning.pointerId) return;
     const dx=ev.clientX-panning.startX, dy=ev.clientY-panning.startY;
     if(!panning.moved && Math.hypot(dx,dy)>4){
       panning.moved=true;
@@ -2096,6 +2410,7 @@ window.addEventListener('mousemove',(ev)=>{
     return;
   }
   if(lasso){
+    if(lasso.pointerId!=null && ev.pointerId!==lasso.pointerId) return;
     const r=canvasWrap.getBoundingClientRect();
     lasso.curX=ev.clientX-r.left;
     lasso.curY=ev.clientY-r.top;
@@ -2116,13 +2431,30 @@ window.addEventListener('mousemove',(ev)=>{
   }
 });
 
-window.addEventListener('mouseup',()=>{
+function endCanvasGesture(ev){
+  if(ev && touches.has(ev.pointerId)){
+    touches.delete(ev.pointerId);
+    if(touches.size<2) pinch=null;
+    if(touches.size===1){
+      // one finger left after a pinch: hand it the pan, from where it is now
+      const [id,pt]=[...touches.entries()][0];
+      panning={startX:pt.x,startY:pt.y,panX0:state.panX,panY0:state.panY,moved:true,pointerId:id,touch:true};
+    }
+  }
   if(panning){
+    if(ev && panning.pointerId!=null && ev.pointerId!==panning.pointerId) return;
     if(panning.moved) canvasWrap.classList.remove('panning');
+    // a finger that panned must not also land as a tap that clears the selection;
+    // the flag lapses on its own in case this gesture ends without a click at all
+    if(panning.moved && panning.touch){
+      suppressNextClick=true;
+      setTimeout(()=>{suppressNextClick=false;},400);
+    }
     panning=null;
     return;
   }
   if(lasso){
+    if(ev && lasso.pointerId!=null && ev.pointerId!==lasso.pointerId) return;
     if(lasso.moved){
       // hit-test blocks against the lasso rect in client coords
       const r=canvasWrap.getBoundingClientRect();
@@ -2146,7 +2478,9 @@ window.addEventListener('mouseup',()=>{
     }
     lasso=null;
   }
-});
+}
+window.addEventListener('pointerup',endCanvasGesture);
+window.addEventListener('pointercancel',endCanvasGesture);
 
 window.addEventListener('keydown',(ev)=>{
   if(ev.target.tagName==='INPUT') return;
@@ -2206,6 +2540,26 @@ function zoomFit(){
   state.panX=-(minX-pad)*z + (rect.width-w*z)/2;
   state.panY=-(minY-pad)*z + (rect.height-h*z)/2;
   applyZoom();
+}
+/* An argument laid out for a laptop opens off the edges of a phone. Fit it on
+   arrival when it does not already fit — but only then, so a screen with room
+   to spare keeps the 100% view it was authored at. */
+function fitIfOverflowing(){
+  if(!state.blocks.length) return;
+  const rect=canvas.parentElement.getBoundingClientRect();
+  const els=[...canvas.querySelectorAll('.block')];
+  if(!els.length) return;
+  let minX=1/0,minY=1/0,maxX=-1/0,maxY=-1/0;
+  els.forEach(el=>{
+    const r=el.getBoundingClientRect();
+    const b=state.blocks.find(x=>x.id===+el.dataset.id); if(!b) return;
+    minX=Math.min(minX,b.x); minY=Math.min(minY,b.y);
+    maxX=Math.max(maxX,b.x+r.width/state.zoom); maxY=Math.max(maxY,b.y+r.height/state.zoom);
+  });
+  if(maxX===-1/0) return;
+  const pad=24;
+  const w=(maxX-minX)*state.zoom, h=(maxY-minY)*state.zoom;
+  if(w>rect.width-pad*2 || h>rect.height-pad*2) zoomFit();
 }
 (function(){
   document.getElementById('zoomIn').addEventListener('click',()=>setZoom(state.zoom*1.15));
@@ -2274,13 +2628,20 @@ document.getElementById('clearBtn').addEventListener('click',()=>{
 
 // examples dropdown (defined after EXAMPLES/loadExample below)
 
+/* On a phone the two panels are bottom sheets over the same space, so opening
+   one closes the other. They announce themselves through this event rather
+   than reaching into each other. */
+const PANEL_OPEN='monocle:panel-open';
+function announcePanel(name){ document.dispatchEvent(new CustomEvent(PANEL_OPEN,{detail:name})); }
+
 // validity panel toggle (persisted)
 (function(){
   const fab=document.getElementById('validityFab'), sb=document.getElementById('sidebar');
   const KEY='argument-builder:panel';
-  const set=(open)=>{
+  const set=(open,announce)=>{
     sb.hidden=!open; fab.setAttribute('aria-expanded',open?'true':'false');
     try{ localStorage.setItem(KEY, open?'1':'0'); }catch(e){}
+    if(open && announce!==false) announcePanel('validity');
     // canvas size changed → recompute wires
     requestAnimationFrame(renderWires);
   };
@@ -2288,6 +2649,10 @@ document.getElementById('clearBtn').addEventListener('click',()=>{
   try{ initOpen = localStorage.getItem(KEY)==='1'; }catch(e){}
   set(initOpen);
   fab.addEventListener('click',(e)=>{ e.stopPropagation(); set(sb.hidden); });
+  // the sheet covers its own toggle, so it carries a way out
+  document.getElementById('sidebarClose').addEventListener('click',(e)=>{ e.stopPropagation(); set(false); });
+  document.addEventListener(PANEL_OPEN,(e)=>{ if(e.detail!=='validity' && phoneLayout() && !sb.hidden) set(false,false); });
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && phoneLayout() && !sb.hidden) set(false); });
 })();
 
 // premises panel (right) toggle + render
@@ -2312,9 +2677,10 @@ document.getElementById('clearBtn').addEventListener('click',()=>{
   }
   function opt(p){ return '<option value="'+escapeAttr(p.symbol)+'"'+(p.description?' label="'+escapeAttr(p.description)+'"':'')+'>'; }
   function escapeAttr(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-  const set=(open)=>{
+  const set=(open,announce)=>{
     panel.hidden=!open; fab.setAttribute('aria-expanded',open?'true':'false');
     try{ localStorage.setItem(KEY, open?'1':'0'); }catch(e){}
+    if(open && announce!==false) announcePanel('premises');
     requestAnimationFrame(renderWires);
   };
   let initOpen=false;
@@ -2322,6 +2688,10 @@ document.getElementById('clearBtn').addEventListener('click',()=>{
   set(initOpen);
   renderRows();
   fab.addEventListener('click',(e)=>{ e.stopPropagation(); set(panel.hidden); });
+  // the sheet covers its own toggle, so it carries a way out
+  document.getElementById('premClose').addEventListener('click',(e)=>{ e.stopPropagation(); set(false); });
+  document.addEventListener(PANEL_OPEN,(e)=>{ if(e.detail!=='premises' && phoneLayout() && !panel.hidden) set(false,false); });
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && phoneLayout() && !panel.hidden) set(false); });
   document.getElementById('premAdd').addEventListener('click',()=>{ state.premises.push({symbol:'',description:''}); renderRows(); persist(); rowsEl.querySelector('.premise-row:last-child .premise-row__sym').focus(); });
   window.__renderPremises=renderRows;
 })();
@@ -2451,6 +2821,7 @@ function loadExample(key){
   const dx=(rect.width-(maxX+minX))/2, dy=(rect.height-(maxY+minY))/2;
   state.blocks.forEach(b=>{b.x+=dx; b.y+=dy;});
   render(); persist();
+  fitIfOverflowing();   // examples are laid out wider than a phone screen
   if(window.__renderPremises) window.__renderPremises();
   if(window.__refreshSymbolList) window.__refreshSymbolList();
 }
@@ -2587,6 +2958,7 @@ function loadExample(key){
     loadExample('rain');
   }
   render();
+  fitIfOverflowing();   // a phone-sized window meets a laptop-sized argument
 }
 if(window.__renderPremises) window.__renderPremises();
 if(window.__refreshSymbolList) window.__refreshSymbolList();
@@ -2609,6 +2981,9 @@ if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfC
 
 // ---- custom tooltips (data-tip) ----
 (function(){
+  // A touch screen has no hover: a tap would pin a tooltip that nothing then
+  // takes away. Labels live in aria-label, so nothing is lost by staying quiet.
+  if(mq('(hover:none)').matches) return;
   const tip=document.getElementById('tip');
   let target=null;
   function show(el){
@@ -2656,7 +3031,7 @@ if (location.protocol==='file:') window.__logic={ tryParse, nnf, toClauses, cnfC
   // Esc dismisses
   document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && !hint.hidden) dismiss(); });
   // auto-dismiss on first canvas interaction
-  document.getElementById('canvasWrap').addEventListener('mousedown',()=>{ if(!hint.hidden) dismiss(); }, {once:true});
+  document.getElementById('canvasWrap').addEventListener('pointerdown',()=>{ if(!hint.hidden) dismiss(); }, {once:true});
 })();
 </script>
 </body>
