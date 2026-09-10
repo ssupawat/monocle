@@ -7,7 +7,7 @@ Open `index.html` in a browser. Single file, vanilla JS, no build step.
 ## Build an argument
 
 1. Click **+ Add block** to create premise blocks. Type formulas like `p → q`.
-2. **Lasso-select** premise blocks by dragging on empty canvas.
+2. Pick the premises: **lasso-select** them by dragging on empty canvas, or hit **⊕** in a block's header.
 3. **Click a block** to set it as the conclusion. The selected premises now entail it.
 
 A concluded block can itself be a premise in the next step, so chains compose: `{A, A→B} ⊨ B`, then `{B, B→C} ⊨ C`, and so on.
@@ -62,6 +62,18 @@ The **Share** button copies a URL whose hash encodes the full canvas state (bloc
 
 Work persists to `localStorage` and reloads on next open. Pick a starting point from the **examples** dropdown (Rain, Socrates, Fire, Dog, Witch).
 
+## On a phone
+
+The whole app works by finger. Input is handled as pointer events, so one code path serves mouse, pen and touch:
+
+- **One finger on empty canvas = pan**, the gesture a phone already teaches. That is why lasso-select is not the touch route into a step: **⊕ in a block's header** picks it as a premise instead, one block at a time, and the same control is there with a mouse.
+- With premises picked, every other block shows a **⊨ conclude here** target across its whole face — on a small screen the text field covers most of a block, so the tap target cannot be the sliver of header beside it. The wash stays sheer so you can still read the block you are choosing.
+- **Two fingers pinch to zoom**; drag a block by its header to move it. Zoom is honoured while dragging, so a block still tracks the finger at any zoom.
+- An argument laid out on a laptop is **fitted to the screen on arrival** when it does not already fit, rather than opening off the edges.
+- Chrome stacks instead of colliding: actions along the top, **Premises / zoom / Validity** on the bottom edge within thumb reach, help in the top-right corner. The two side panels become **bottom sheets** — full width, half the screen, one at a time, each with its own close button.
+- Every control is at least 44px tall, fields are 16px or larger so iOS does not zoom the page when one takes focus, and tooltips stay quiet on a touch screen where nothing would ever take them away (the labels live in `aria-label`).
+- The layout is measured in `dvh` where available, respects safe-area insets on notched phones, and the instructions in the hint and the help sheet are written for the pointer you actually have.
+
 ## Operators
 
 | Symbol | Meaning | Typing |
@@ -80,9 +92,11 @@ Variables are single letters like `p`, `q`, `r`.
 npm install
 npx playwright install chrome   # real Chrome channel; bundled Chromium renders differently
 node test.mjs
+
+MONOCLE_CHROME=/path/to/chrome node test.mjs   # where the Chrome channel isn't installed
 ```
 
-155 Playwright tests (run headlessly against `file://`) cover: DPLL validity at scale, pattern and fallacy detection, multi-step chain propagation, the cycle guard, persistence, shareable URLs, the proof readout, ARIA autocomplete, render re-entrancy, theme persistence, and the verdict-coloured blocks and wires. Tests seed app state directly through `window.__argBuilder` / `window.__logic` hooks for determinism.
+176 Playwright tests (run headlessly against `file://`) cover: DPLL validity at scale, pattern and fallacy detection, multi-step chain propagation, the cycle guard, persistence, shareable URLs, the proof readout, ARIA autocomplete, render re-entrancy, theme persistence, the verdict-coloured blocks and wires, and the phone build — layout at 390×844, fit-on-arrival, bottom sheets, and touch gestures driven as real touch input through CDP (one-finger pan, two-finger pinch, dragging a block by its header, picking premises and concluding by tap). Tests seed app state directly through `window.__argBuilder` / `window.__logic` hooks for determinism.
 
 ## Tech
 

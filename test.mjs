@@ -10,7 +10,11 @@ function check(name, cond, detail=''){
   console.log(`${cond?'✓':'✗'} ${name}${cond?'':`  — ${detail}`}`);
 }
 
-const browser = await chromium.launch({ channel:'chrome' });
+// Real Chrome by default (it renders the fonts and the SVG the way the app is
+// tuned for). MONOCLE_CHROME points at another binary where Chrome is absent.
+const browser = await chromium.launch(
+  process.env.MONOCLE_CHROME ? { executablePath: process.env.MONOCLE_CHROME } : { channel:'chrome' }
+);
 try {
   const page = await browser.newPage({ viewport:{width:1280,height:800} });
   page.on('console', m => { if(m.type()==='error') console.log('  [console.error]', m.text()); });
@@ -1020,6 +1024,204 @@ try {
   }
 
   await page.screenshot({ path:'test-final.png' });
+
+  // ---- TEST 28: phone layout + touch gestures ---------------------------
+  // A phone-sized context with a real touch screen. Gestures go through CDP's
+  // touch input so the app sees pointerType 'touch', the way a finger arrives.
+  console.log('\n=== Test 28: phone layout and touch input ===');
+  {
+    const phone = await browser.newContext({
+      viewport:{width:390,height:844}, hasTouch:true, isMobile:true, deviceScaleFactor:2,
+    });
+    const mp = await phone.newPage();
+    mp.on('pageerror', e => console.log('  [pageerror]', e.message));
+    await mp.goto(FILE);
+    await mp.waitForTimeout(500);
+
+    const cdp = await phone.newCDPSession(mp);
+    const touchAt = (type, pts) => cdp.send('Input.dispatchTouchEvent', {
+      type, touchPoints: pts.map((p,i)=>({x:p.x, y:p.y, id:i, radiusX:8, radiusY:8, force:1})),
+    });
+    const view = () => mp.evaluate(()=>({
+      zoom:window.__argBuilder.state.zoom,
+      panX:window.__argBuilder.state.panX,
+      panY:window.__argBuilder.state.panY,
+      blocks:window.__argBuilder.state.blocks.map(b=>({label:b.label,x:b.x,y:b.y})),
+      wires:window.__argBuilder.state.wires.length,
+    }));
+    const mBlock = (label) => mp.evaluateHandle((lbl)=>{
+      const i=[...document.querySelectorAll('.block__input')].find(x=>x.value.trim()===lbl);
+      return i?i.closest('.block'):null;
+    }, label).then(h=>h.asElement());
+
+    // layout: nothing runs off the side, and the argument is fitted to fit
+    const overflow = await mp.evaluate(()=>document.documentElement.scrollWidth - window.innerWidth);
+    check('phone: no horizontal overflow', overflow<=0, `scrollWidth-innerWidth=${overflow}`);
+    const fitted = await view();
+    check('phone: a laptop-sized argument is fitted on load', fitted.zoom<1 && fitted.zoom>=0.4, `zoom=${fitted.zoom}`);
+    const onScreen = await mp.evaluate(()=>[...document.querySelectorAll('.block')].every(el=>{
+      const r=el.getBoundingClientRect();
+      return r.left>=-1 && r.top>=-1 && r.right<=window.innerWidth+1 && r.bottom<=window.innerHeight+1;
+    }));
+    check('phone: every block lands inside the screen', onScreen);
+
+    // the chrome stacks: actions on top, panel toggles within thumb reach
+    const chrome = await mp.evaluate(()=>{
+      const r=(sel)=>{const e=document.querySelector(sel);const b=e.getBoundingClientRect();return {top:b.top,bottom:b.bottom,left:b.left,right:b.right};};
+      return {pill:r('.top-pill'), help:r('.help-fab'), prem:r('.side-pill--left'), val:r('.side-pill--right'), h:window.innerHeight};
+    });
+    check('phone: panel toggles sit on the bottom edge',
+      chrome.prem.bottom > chrome.h-70 && chrome.val.bottom > chrome.h-70, JSON.stringify(chrome));
+    check('phone: the top bar clears the help button',
+      chrome.pill.right <= chrome.help.left, `pill.right=${chrome.pill.right} help.left=${chrome.help.left}`);
+
+    // one finger on empty canvas pans (from a patch of canvas with nothing on it)
+    const GAP = {x:60, y:660};
+    const gapIsEmpty = await mp.evaluate((p)=>{
+      const el=document.elementFromPoint(p.x,p.y);
+      return el && (el.id==='canvas'||el.id==='wires'||el.id==='canvasWrap'||el.id==='emptyHint');
+    }, GAP);
+    check('phone: the gesture test starts on empty canvas', gapIsEmpty);
+    const before = await view();
+    await touchAt('touchStart',[GAP]);
+    await touchAt('touchMove',[{x:GAP.x+50, y:GAP.y+40}]);
+    await touchAt('touchMove',[{x:GAP.x+100, y:GAP.y+80}]);
+    await touchAt('touchEnd',[]);
+    await mp.waitForTimeout(150);
+    const panned = await view();
+    check('touch: one finger on empty canvas pans',
+      Math.round(panned.panX-before.panX)===100 && Math.round(panned.panY-before.panY)===80,
+      `Δ=(${panned.panX-before.panX},${panned.panY-before.panY})`);
+
+    // two fingers pinch to zoom, wherever they land
+    await touchAt('touchStart',[{x:120,y:660},{x:270,y:660}]);
+    await touchAt('touchMove',[{x:90,y:660},{x:300,y:660}]);
+    await touchAt('touchMove',[{x:60,y:660},{x:330,y:660}]);
+    await touchAt('touchEnd',[]);
+    await mp.waitForTimeout(150);
+    const pinched = await view();
+    check('touch: two fingers pinch to zoom', pinched.zoom > panned.zoom*1.5,
+      `${panned.zoom} → ${pinched.zoom}`);
+
+    // a finger on a block header drags the block, and only the block
+    await mp.click('#zoomPct');                       // back to 100%, pan cleared
+    await mp.waitForTimeout(150);
+    await mp.click('#clearBtn'); await mp.waitForTimeout(200);   // one block, nothing to overlap it
+    await mp.click('#addBtn'); await mp.waitForTimeout(150);
+    await mp.locator('.block__input').last().fill('p');
+    await mp.evaluate(()=>window.__argBuilder.moveBlock('p', 40, 300));
+    await mp.waitForTimeout(200);
+    const head = await (await mBlock('p')).$('.block__head');
+    const hb = await head.boundingBox();
+    const grip = {x:hb.x+12, y:hb.y+hb.height/2};      // left of the header controls
+    const onHeader = await mp.evaluate((g)=>{
+      const el=document.elementFromPoint(g.x,g.y);
+      return !!el && !!el.closest('.block__head') && !el.closest('button');
+    }, grip);
+    check('touch: the drag grip is bare header, not a control', onHeader);
+    const preDrag = await view();
+    await touchAt('touchStart',[grip]);
+    await touchAt('touchMove',[{x:grip.x+60, y:grip.y+90}]);
+    await touchAt('touchMove',[{x:grip.x+90, y:grip.y+130}]);
+    await touchAt('touchEnd',[]);
+    await mp.waitForTimeout(200);
+    const dragged = await view();
+    const p0=preDrag.blocks.find(b=>b.label==='p'), p1=dragged.blocks.find(b=>b.label==='p');
+    check('touch: a finger drags a block by its header',
+      Math.round(p1.x-p0.x)===90 && Math.round(p1.y-p0.y)===130, `Δ=(${p1.x-p0.x},${p1.y-p0.y})`);
+    check('touch: dragging a block does not pan the canvas',
+      dragged.panX===preDrag.panX && dragged.panY===preDrag.panY, `pan=(${dragged.panX},${dragged.panY})`);
+
+    // picking premises without a lasso: ⊕ on the block, then tap the target
+    await mp.evaluate(()=>window.__argBuilder.reset());
+    await mp.waitForTimeout(300);
+    await mp.click('#addBtn'); await mp.waitForTimeout(150);
+    await mp.locator('.block__input').last().fill('r');
+    await mp.waitForTimeout(200);
+    const pickBtn = await (await mBlock('p')).$('.block__pick');
+    const pb = await pickBtn.boundingBox();
+    await mp.touchscreen.tap(pb.x+pb.width/2, pb.y+pb.height/2);
+    await mp.waitForTimeout(250);
+    const picked = await mp.evaluate(()=>({
+      pressed:[...document.querySelectorAll('.block__pick')].filter(b=>b.getAttribute('aria-pressed')==='true').length,
+      banner:!!document.querySelector('.link-banner'),
+      targets:document.querySelectorAll('.block--target').length,
+      overlay:getComputedStyle(document.querySelector('.block--target .block__conclude')).display,
+    }));
+    check('touch: ⊕ picks the block as a premise', picked.pressed===1 && picked.banner, JSON.stringify(picked));
+    check('touch: every other block offers a conclude target',
+      picked.targets>=1 && picked.overlay!=='none', JSON.stringify(picked));
+
+    const wiresBefore = (await view()).wires;
+    const target = await (await mBlock('r')).$('.block__conclude');
+    const tb = await target.boundingBox();
+    await mp.touchscreen.tap(tb.x+tb.width/2, tb.y+tb.height/2);
+    await mp.waitForTimeout(350);
+    const concluded = await view();
+    check('touch: tapping the target concludes the step', concluded.wires===wiresBefore+1,
+      `${wiresBefore} → ${concluded.wires}`);
+
+    // panels are bottom sheets, one at a time, each with its own way out
+    await mp.click('#premFab'); await mp.waitForTimeout(250);
+    const sheet = await mp.evaluate(()=>{
+      const r=document.getElementById('premPanel').getBoundingClientRect();
+      return {w:Math.round(r.width), vw:window.innerWidth, bottom:Math.round(r.bottom), vh:window.innerHeight,
+              tall:Math.round(r.height)};
+    });
+    check('phone: the premises panel opens as a bottom sheet',
+      sheet.w===sheet.vw && Math.abs(sheet.bottom-sheet.vh)<=1 && sheet.tall<sheet.vh,
+      JSON.stringify(sheet));
+    await mp.click('#validityFab'); await mp.waitForTimeout(250);
+    const both = await mp.evaluate(()=>({prem:document.getElementById('premPanel').hidden, val:document.getElementById('sidebar').hidden}));
+    check('phone: opening one sheet closes the other', both.prem===true && both.val===false, JSON.stringify(both));
+    await mp.click('#sidebarClose'); await mp.waitForTimeout(200);
+    const closed = await mp.evaluate(()=>document.getElementById('sidebar').hidden);
+    check('phone: a sheet closes from its own close button', closed===true);
+
+    // fingers need something to land on, and iOS zooms the page for small fields
+    await mp.click('#zoomPct'); await mp.waitForTimeout(200);   // measure blocks at 100%
+    const small = await mp.evaluate(()=>{
+      const bad=[];
+      // every *visible* instance has to be big enough; a control the app hides
+      // on purpose (the truth-table button on a bare variable) is not a target
+      const measure=(sels,min)=>sels.forEach(s=>{
+        const els=[...document.querySelectorAll(s)].filter(e=>e.getBoundingClientRect().width>0);
+        if(!els.length){ bad.push(s+':nothing visible'); return; }
+        els.forEach(e=>{
+          const r=e.getBoundingClientRect();
+          if(r.height<min || r.width<min) bad.push(s+':'+Math.round(r.width)+'x'+Math.round(r.height)+' <'+min);
+        });
+      });
+      // fixed chrome, at 44px
+      // (#zoomIn / #zoomOut are hidden on a phone — pinch replaces them)
+      measure(['#addBtn','#clearBtn','#shareBtn','#themeBtn','#premFab','#validityFab',
+               '#helpFab','#zoomFit','#zoomPct'],44);
+      // on-canvas controls, at 36px and scaling with zoom
+      measure(['.block__pick','.block__close','.ops__b','.block__actions .icon-btn'],36);
+      return bad;
+    });
+    check('touch: chrome is 44px and on-canvas controls 36px', small.length===0, small.join(', '));
+    await mp.click('#premFab'); await mp.waitForTimeout(200);
+    await mp.click('#premAdd'); await mp.waitForTimeout(200);
+    const fontSizes = await mp.evaluate(()=>['.block__input','.premise-row__sym','.premise-row__desc']
+      .map(s=>{const e=document.querySelector(s); return e?parseFloat(getComputedStyle(e).fontSize):99;}));
+    check('touch: no field is small enough to trigger iOS zoom-on-focus',
+      fontSizes.every(f=>f>=16), fontSizes.join(', '));
+
+    // hover-only chrome stays out of the way of a finger
+    await mp.touchscreen.tap(20, 500); await mp.waitForTimeout(200);
+    const tipHidden = await mp.evaluate(()=>document.getElementById('tip').hidden);
+    check('touch: a tap never pins a tooltip', tipHidden===true);
+
+    const hitW = await mp.evaluate(()=>{
+      const h=document.querySelector('svg path.hit');
+      return h?parseFloat(h.getAttribute('stroke-width')):0;
+    });
+    check('touch: the wire hit line is widened for a fingertip', hitW>=30, `stroke-width=${hitW}`);
+
+    await mp.screenshot({ path:'test-final-phone.png' });
+    await phone.close();
+  }
 } finally {
   await browser.close();
 }
